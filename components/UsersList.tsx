@@ -12,6 +12,7 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem a certeza que deseja remover este utilizador?')) {
@@ -75,7 +76,7 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-petrol-950/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl">
+          <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
             <h3 className="text-2xl font-bold text-petrol-900 mb-6">{editingUser ? 'Editar Perfil' : 'Criar Utilizador'}</h3>
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -86,6 +87,7 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
                 name: formData.get('name') as string,
                 role: formData.get('role') as Role,
                 phone: formData.get('phone') as string,
+                password: (formData.get('password') as string) || '123',
                 avatar: editingUser?.avatar || `https://picsum.photos/seed/${Math.random()}/200`,
                 active: true
               };
@@ -109,6 +111,26 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
                   <option value={Role.COACH}>Treinador</option>
                   <option value={Role.ADMIN}>Administrador</option>
                 </select>
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+                <div className="relative">
+                  <input 
+                    name="password" 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Padrão: 123"
+                    defaultValue={editingUser?.password}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase tracking-widest"
+                  >
+                    {showPassword ? 'Ocultar' : 'Ver'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 ml-2">Se deixar vazio, a password será '123'.</p>
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" disabled={saving} onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
