@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Padel Pro - Training Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        petrol: {
+                            50: '#f2f7f9',
+                            100: '#dfecef',
+                            200: '#c3d9e2',
+                            300: '#98bdcc',
+                            400: '#6799af',
+                            500: '#4a7d95',
+                            600: '#3f677d',
+                            700: '#385567',
+                            800: '#334856',
+                            900: '#2e3e4a',
+                            950: '#1a2730',
+                        },
+                        padelgreen: {
+                            50: '#f4fbe7',
+                            100: '#e7f7ca',
+                            200: '#cfef9c',
+                            300: '#ace361',
+                            400: '#8be300',
+                            500: '#6bc600',
+                            600: '#529d00',
+                            700: '#3f7800',
+                            800: '#355f06',
+                            900: '#2f510a',
+                            950: '#162d00',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.48.1"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+</body>
+</html>

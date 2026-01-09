@@ -1,0 +1,64 @@
+
+import { User, Shift, TrainingSession } from '../types';
+import { supabase, isSupabaseConfigured } from './supabase';
+
+const ensureConfig = () => {
+  if (!isSupabaseConfigured) {
+    throw new Error("Supabase configuration missing (URL/Anon Key).");
+  }
+};
+
+export const db = {
+  users: {
+    getAll: async (): Promise<User[]> => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase.from('users').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    save: async (user: User) => {
+      ensureConfig();
+      const { data, error } = await supabase.from('users').upsert(user).select();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+    }
+  },
+  shifts: {
+    getAll: async (): Promise<Shift[]> => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase.from('shifts').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    save: async (shift: Shift) => {
+      ensureConfig();
+      const { data, error } = await supabase.from('shifts').upsert(shift).select();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('shifts').delete().eq('id', id);
+      if (error) throw error;
+    }
+  },
+  sessions: {
+    getAll: async (): Promise<TrainingSession[]> => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase.from('sessions').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    save: async (session: TrainingSession) => {
+      ensureConfig();
+      const { data, error } = await supabase.from('sessions').upsert(session).select();
+      if (error) throw error;
+      return data;
+    }
+  }
+};

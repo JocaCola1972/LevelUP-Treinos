@@ -1,0 +1,8 @@
+{
+  "name": "LevelUP Treinos #2",
+  "description": "A comprehensive Padel training management system with AI insights, session tracking, and role-based access control for students, coaches, and administrators.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
