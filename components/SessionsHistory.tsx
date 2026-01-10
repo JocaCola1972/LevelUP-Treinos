@@ -2,14 +2,19 @@
 import React, { useState } from 'react';
 import { AppState, Role, TrainingSession } from '../types';
 import { analyzeSession } from '../services/gemini';
+import { db } from '../services/db';
 
 interface SessionsHistoryProps {
   state: AppState;
+  refresh: () => void;
 }
 
-const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state }) => {
+const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => {
   const [selectedSession, setSelectedSession] = useState<TrainingSession | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const activeSession = state.sessions.find(s => s.isActive);
+  const userRole = state.currentUser?.role;
 
   const handleAnalyze = async (session: TrainingSession) => {
     if (!session.notes) return;
@@ -19,51 +24,128 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state }) => {
     setIsAnalyzing(false);
   };
 
+  const handleStartSession = async (shiftId: string) => {
+    const newSession: TrainingSession = {
+      id: Math.random().toString(36).substr(2, 9),
+      shiftId,
+      date: new Date().toISOString(),
+      isActive: true,
+      completed: false,
+      attendeeIds: [],
+    };
+    await db.sessions.save(newSession);
+    refresh();
+  };
+
+  const handleFinishSession = async (session: TrainingSession) => {
+    if (!confirm('Deseja finalizar esta sessão de treino?')) return;
+    const updated = { ...session, isActive: false, completed: true };
+    await db.sessions.save(updated);
+    refresh();
+  };
+
+  const historicalSessions = state.sessions.filter(s => !s.isActive);
+
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {state.sessions.map(session => {
-          const shift = state.shifts.find(s => s.id === session.shiftId);
-          return (
-            <div 
-              key={session.id} 
-              onClick={() => setSelectedSession(session)}
-              className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 cursor-pointer hover:border-padelgreen-400 hover:shadow-lg transition-all active:scale-[0.98] md:active:scale-100"
+      {/* Active Session Section */}
+      {activeSession ? (
+        <div className="bg-padelgreen-50 border-2 border-padelgreen-400 p-6 rounded-3xl shadow-lg shadow-padelgreen-400/10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-5 w-full md:w-auto">
+            <div className="w-16 h-16 bg-padelgreen-400 rounded-2xl animate-pulse flex items-center justify-center shrink-0 shadow-lg shadow-padelgreen-500/20 text-3xl">
+              🎾
+            </div>
+            <div>
+              <h3 className="text-xl md:text-2xl font-bold text-petrol-900 leading-tight">Treino em Curso</h3>
+              <p className="text-sm text-petrol-700">A sessão está ativa. Registe as notas e presenças.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <button 
+              onClick={() => setSelectedSession(activeSession)}
+              className="flex-1 md:flex-none px-6 py-3 bg-white text-petrol-900 border border-petrol-200 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95"
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(session.date).toLocaleDateString()}</span>
-                <span className={`text-[9px] md:text-[10px] font-bold px-2.5 py-1 rounded-full ${session.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                  {session.completed ? 'CONCLUÍDO' : 'EM CURSO'}
-                </span>
-              </div>
-              <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-2 leading-tight">
-                {shift?.dayOfWeek} <span className="text-slate-400 font-medium">às {shift?.startTime}</span>
-              </h3>
-              <p className="text-xs md:text-sm text-slate-500 line-clamp-2 mb-4 h-8 md:h-10">
-                {session.notes || "Nenhuma nota registada para este treino."}
-              </p>
-              <div className="flex items-center justify-between mt-auto">
-                <div className="flex -space-x-2">
-                  {session.attendeeIds.slice(0, 4).map(id => (
-                    <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white" alt="" />
-                  ))}
-                  {session.attendeeIds.length > 4 && (
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-500">
-                      +{session.attendeeIds.length - 4}
-                    </div>
-                  )}
-                </div>
-                {session.aiInsights && <span className="text-lg md:text-xl" title="Contém análise AI">✨</span>}
+              Ver Detalhes
+            </button>
+            <button 
+              onClick={() => handleFinishSession(activeSession)}
+              className="flex-1 md:flex-none px-8 py-3 bg-petrol-900 text-white rounded-2xl font-bold hover:bg-petrol-950 transition-all shadow-lg active:scale-95"
+            >
+              Finalizar
+            </button>
+          </div>
+        </div>
+      ) : (
+        userRole !== Role.STUDENT && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-petrol-900 ml-2">Abrir Novo Treino</h3>
+            <div className="overflow-x-auto pb-4 -mx-1 px-1">
+              <div className="flex md:grid md:grid-cols-4 gap-4 min-w-[600px] md:min-w-0">
+                {state.shifts.slice(0, 4).map(shift => (
+                  <div key={shift.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-padelgreen-400 transition-all group flex-1 shadow-sm">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{shift.dayOfWeek}</p>
+                    <p className="text-lg font-bold text-petrol-900 mb-4">{shift.startTime}</p>
+                    <button 
+                      onClick={() => handleStartSession(shift.id)}
+                      className="w-full py-2.5 rounded-xl bg-slate-50 text-slate-600 text-xs font-bold group-hover:bg-padelgreen-400 group-hover:text-petrol-900 transition-all"
+                    >
+                      Iniciar Agora
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
-          );
-        })}
-        {state.sessions.length === 0 && (
-          <div className="col-span-full py-16 md:py-24 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200 text-slate-400 px-6">
-            <span className="text-4xl mb-4 block">📅</span>
-            <p className="font-medium">Ainda não há histórico de sessões.</p>
           </div>
-        )}
+        )
+      )}
+
+      {/* History Grid */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-bold text-petrol-900 ml-2">Histórico de Treinos</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {historicalSessions.map(session => {
+            const shift = state.shifts.find(s => s.id === session.shiftId);
+            return (
+              <div 
+                key={session.id} 
+                onClick={() => setSelectedSession(session)}
+                className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 cursor-pointer hover:border-padelgreen-400 hover:shadow-lg transition-all active:scale-[0.98] md:active:scale-100"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(session.date).toLocaleDateString()}</span>
+                  <span className={`text-[9px] md:text-[10px] font-bold px-2.5 py-1 rounded-full ${session.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                    {session.completed ? 'CONCLUÍDO' : 'PENDENTE'}
+                  </span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-2 leading-tight">
+                  {shift?.dayOfWeek} <span className="text-slate-400 font-medium">às {shift?.startTime}</span>
+                </h3>
+                <p className="text-xs md:text-sm text-slate-500 line-clamp-2 mb-4 h-8 md:h-10">
+                  {session.notes || "Nenhuma nota registada para este treino."}
+                </p>
+                <div className="flex items-center justify-between mt-auto">
+                  <div className="flex -space-x-2">
+                    {session.attendeeIds.slice(0, 4).map(id => (
+                      <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white" alt="" />
+                    ))}
+                    {session.attendeeIds.length > 4 && (
+                      <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-500">
+                        +{session.attendeeIds.length - 4}
+                      </div>
+                    )}
+                  </div>
+                  {session.aiInsights && <span className="text-lg md:text-xl" title="Contém análise AI">✨</span>}
+                </div>
+              </div>
+            );
+          })}
+          {historicalSessions.length === 0 && !activeSession && (
+            <div className="col-span-full py-16 md:py-24 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200 text-slate-400 px-6">
+              <span className="text-4xl mb-4 block">📅</span>
+              <p className="font-medium">Ainda não há histórico de sessões.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedSession && (
@@ -72,7 +154,9 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state }) => {
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">Detalhes do Treino</h3>
+              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">
+                {selectedSession.isActive ? 'Gestão de Treino Ativo' : 'Detalhes do Treino'}
+              </h3>
               <button onClick={() => setSelectedSession(null)} className="hidden md:block text-slate-400 hover:text-slate-600 text-3xl transition-colors">×</button>
             </div>
             
@@ -88,12 +172,28 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state }) => {
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Notas do Treinador</h4>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm md:text-base leading-relaxed min-h-24">
-                  {selectedSession.notes || "Sem notas disponíveis para esta sessão."}
+              {selectedSession.isActive ? (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Notas da Sessão</h4>
+                  <textarea 
+                    placeholder="Escreva as observações do treino aqui..."
+                    defaultValue={selectedSession.notes}
+                    onBlur={async (e) => {
+                      const updated = { ...selectedSession, notes: e.target.value };
+                      await db.sessions.save(updated);
+                      refresh();
+                    }}
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32 transition-all"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Notas do Treinador</h4>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm md:text-base leading-relaxed min-h-24">
+                    {selectedSession.notes || "Sem notas disponíveis para esta sessão."}
+                  </div>
+                </div>
+              )}
 
               {selectedSession.youtubeUrl && (
                 <div>
@@ -132,12 +232,22 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state }) => {
               </div>
             </div>
 
-            <button 
-              onClick={() => setSelectedSession(null)}
-              className="w-full mt-8 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl md:hidden active:bg-slate-200 transition-colors"
-            >
-              Fechar
-            </button>
+            <div className="flex gap-4 mt-8">
+              <button 
+                onClick={() => setSelectedSession(null)}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl active:bg-slate-200 transition-colors"
+              >
+                Fechar
+              </button>
+              {selectedSession.isActive && (
+                <button 
+                  onClick={() => { handleFinishSession(selectedSession); setSelectedSession(null); }}
+                  className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl active:bg-petrol-950 transition-colors"
+                >
+                  Finalizar Treino
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

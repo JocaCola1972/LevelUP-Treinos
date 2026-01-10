@@ -182,7 +182,7 @@ ON CONFLICT (phone) DO NOTHING;`}
       case 'dashboard': return <Dashboard state={appState} refresh={refreshData} />;
       case 'users': return <UsersList state={appState} refresh={refreshData} />;
       case 'shifts': return <ShiftsList state={appState} refresh={refreshData} />;
-      case 'sessions': return <SessionsHistory state={appState} />;
+      case 'sessions': return <SessionsHistory state={appState} refresh={refreshData} />;
       default: return <Dashboard state={appState} refresh={refreshData} />;
     }
   };

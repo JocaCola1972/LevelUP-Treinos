@@ -92,21 +92,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
   }, [state.shifts, userId, userRole]);
 
-  const activeSession = state.sessions.find(s => s.isActive);
-
-  const handleStartSession = (shiftId: string) => {
-    const newSession: TrainingSession = {
-      id: Math.random().toString(36).substr(2, 9),
-      shiftId,
-      date: new Date().toISOString(),
-      isActive: true,
-      completed: false,
-      attendeeIds: [],
-    };
-    db.sessions.save(newSession);
-    refresh();
-  };
-
   const chartData = [
     { name: 'Seg', aulas: 4 },
     { name: 'Ter', aulas: 7 },
@@ -158,45 +143,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           </div>
         </div>
       </div>
-
-      {/* Active Session */}
-      {activeSession ? (
-        <div className="bg-padelgreen-50 border-2 border-padelgreen-400 p-4 md:p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-padelgreen-400/10">
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-padelgreen-400 rounded-full animate-pulse flex items-center justify-center shrink-0">
-              🎾
-            </div>
-            <div>
-              <h3 className="text-base md:text-xl font-bold text-petrol-900 leading-tight">Treino em curso!</h3>
-              <p className="text-xs md:text-sm text-petrol-700">Regista as presenças agora.</p>
-            </div>
-          </div>
-          <button 
-            className="w-full md:w-auto px-8 py-3 bg-petrol-900 text-white rounded-2xl font-bold hover:bg-petrol-950 transition-all shadow-lg active:scale-95"
-          >
-            Finalizar Sessão
-          </button>
-        </div>
-      ) : (
-        userRole !== Role.STUDENT && (
-          <div className="overflow-x-auto pb-2 -mx-1 px-1">
-            <div className="flex md:grid md:grid-cols-4 gap-4 min-w-[600px] md:min-w-0">
-              {state.shifts.slice(0, 4).map(shift => (
-                <div key={shift.id} className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-padelgreen-400 transition-colors group flex-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">{shift.dayOfWeek}</p>
-                  <p className="text-base font-bold text-petrol-900 mb-3">{shift.startTime}</p>
-                  <button 
-                    onClick={() => handleStartSession(shift.id)}
-                    className="w-full py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold group-hover:bg-padelgreen-400 group-hover:text-petrol-900 transition-all"
-                  >
-                    Abrir Treino
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      )}
 
       {/* Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
