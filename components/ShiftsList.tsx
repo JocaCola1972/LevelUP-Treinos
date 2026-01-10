@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, Shift, RecurrenceType, Role } from '../types';
 import { db } from '../services/db';
 import { DAYS_OF_WEEK } from '../constants';
@@ -12,25 +12,84 @@ interface ShiftsListProps {
 const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  
+  const [selectedDay, setSelectedDay] = useState<string>(DAYS_OF_WEEK[0]);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+
+  useEffect(() => {
+    if (isModalOpen) {
+      if (editingShift) {
+        setSelectedDay(editingShift.dayOfWeek);
+        setSelectedDate(editingShift.startDate || '');
+      } else {
+        setSelectedDay(DAYS_OF_WEEK[0]);
+        setSelectedDate('');
+      }
+    }
+  }, [isModalOpen, editingShift]);
 
   const coaches = state.users.filter(u => u.role === Role.COACH);
   const students = state.users.filter(u => u.role === Role.STUDENT);
+
+  const getDayFromDate = (dateVal: string) => {
+    if (!dateVal) return null;
+    const [year, month, day] = dateVal.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const dayIndex = date.getDay(); // 0 (Dom) a 6 (Sáb)
+    const mappedIndex = (dayIndex + 6) % 7; // Ajusta para Seg=0 ... Dom=6
+    return DAYS_OF_WEEK[mappedIndex];
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateVal = e.target.value;
+    setSelectedDate(dateVal);
+
+    const calculatedDay = getDayFromDate(dateVal);
+    if (calculatedDay) {
+      setSelectedDay(calculatedDay);
+    }
+  };
+
+  const handleDayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newDay = e.target.value;
+    setSelectedDay(newDay);
+
+    // Se houver uma data selecionada, verificar se ela ainda corresponde ao novo dia da semana
+    if (selectedDate) {
+      const dayOfSelectedDate = getDayFromDate(selectedDate);
+      if (dayOfSelectedDate !== newDay) {
+        // Se o dia não coincidir, limpamos a data para manter a integridade
+        setSelectedDate('');
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const shift: Shift = {
       id: editingShift?.id || Math.random().toString(36).substr(2, 9),
-      dayOfWeek: formData.get('dayOfWeek') as string,
+      dayOfWeek: selectedDay,
       startTime: formData.get('startTime') as string,
       durationMinutes: parseInt(formData.get('duration') as string),
       coachId: formData.get('coachId') as string,
       studentIds: Array.from(formData.getAll('studentIds')) as string[],
       recurrence: formData.get('recurrence') as RecurrenceType,
+      startDate: selectedDate || undefined,
     };
     await db.shifts.save(shift);
     refresh();
     setIsModalOpen(false);
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      return new Date(year, month - 1, day).toLocaleDateString('pt-PT');
+    } catch {
+      return dateStr;
+    }
   };
 
   return (
@@ -50,12 +109,11 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
         )}
       </div>
 
-      {/* Desktop View: Table */}
       <div className="hidden md:block bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Dia</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Data / Dia</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Hora</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Treinador</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Alunos</th>
@@ -66,9 +124,15 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
           <tbody className="divide-y divide-slate-100">
             {state.shifts.map(shift => {
               const coach = state.users.find(u => u.id === shift.coachId);
+              const formattedDate = formatDate(shift.startDate);
               return (
                 <tr key={shift.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-bold text-petrol-900">{shift.dayOfWeek}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-petrol-900">{shift.dayOfWeek}</span>
+                      {formattedDate && <span className="text-[10px] text-slate-400 font-medium">{formattedDate}</span>}
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <span className="bg-petrol-50 text-petrol-700 px-3 py-1 rounded-lg text-sm font-semibold">
                       {shift.startTime} ({shift.durationMinutes}m)
@@ -119,10 +183,10 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
         </table>
       </div>
 
-      {/* Mobile View: Cards */}
       <div className="md:hidden space-y-4">
         {state.shifts.map(shift => {
           const coach = state.users.find(u => u.id === shift.coachId);
+          const formattedDate = formatDate(shift.startDate);
           return (
             <div key={shift.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 px-3 py-1 bg-slate-100 text-[10px] font-bold text-slate-500 rounded-bl-xl uppercase">
@@ -130,7 +194,10 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
               </div>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-petrol-900 leading-tight">{shift.dayOfWeek}</h3>
+                  <h3 className="text-lg font-bold text-petrol-900 leading-tight">
+                    {shift.dayOfWeek}
+                    {formattedDate && <span className="block text-[10px] text-slate-400 font-medium">{formattedDate}</span>}
+                  </h3>
                   <p className="text-padelgreen-600 font-bold text-sm">{shift.startTime} <span className="text-slate-400 font-medium">({shift.durationMinutes}m)</span></p>
                 </div>
               </div>
@@ -155,30 +222,14 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   )}
                 </div>
                 <div className="flex gap-3">
-                  <button 
-                    onClick={() => { setEditingShift(shift); setIsModalOpen(true); }}
-                    className="p-2 text-slate-400 hover:text-petrol-900"
-                  >
-                    ✏️
-                  </button>
-                  <button 
-                    onClick={async () => { if(confirm('Remover?')) { await db.shifts.delete(shift.id); refresh(); }}}
-                    className="p-2 text-red-300 hover:text-red-500"
-                  >
-                    🗑️
-                  </button>
+                  <button onClick={() => { setEditingShift(shift); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-petrol-900">✏️</button>
+                  <button onClick={async () => { if(confirm('Remover?')) { await db.shifts.delete(shift.id); refresh(); }}} className="p-2 text-red-300 hover:text-red-500">🗑️</button>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
-
-      {state.shifts.length === 0 && (
-        <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
-          Nenhum horário agendado.
-        </div>
-      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-petrol-950/40 backdrop-blur-sm">
@@ -188,29 +239,44 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
             <form onSubmit={handleSave} className="space-y-4 pb-8 sm:pb-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
-                  <select name="dayOfWeek" defaultValue={editingShift?.dayOfWeek} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
-                    {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}</option>)}
-                  </select>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Data de Início / Única</label>
+                  <input 
+                    type="date" 
+                    name="startDate" 
+                    value={selectedDate}
+                    onChange={handleDateChange}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Hora Início</label>
-                  <input type="time" name="startTime" defaultValue={editingShift?.startTime} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" />
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
+                  <select 
+                    name="dayOfWeek" 
+                    value={selectedDay}
+                    onChange={handleDayChange}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all"
+                  >
+                    {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Hora Início</label>
+                  <input type="time" name="startTime" defaultValue={editingShift?.startTime} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Duração (Min)</label>
                   <input type="number" name="duration" defaultValue={editingShift?.durationMinutes || 60} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Recorrência</label>
-                  <select name="recurrence" defaultValue={editingShift?.recurrence || RecurrenceType.SEMANAL} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
-                    <option value={RecurrenceType.SEMANAL}>Semanal</option>
-                    <option value={RecurrenceType.QUINZENAL}>Quinzenal</option>
-                    <option value={RecurrenceType.PONTUAL}>Pontual</option>
-                  </select>
-                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Recorrência</label>
+                <select name="recurrence" defaultValue={editingShift?.recurrence || RecurrenceType.SEMANAL} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
+                  <option value={RecurrenceType.SEMANAL}>Semanal</option>
+                  <option value={RecurrenceType.QUINZENAL}>Quinzenal</option>
+                  <option value={RecurrenceType.PONTUAL}>Pontual</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Treinador</label>
