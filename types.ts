@@ -45,10 +45,18 @@ export interface TrainingSession {
   hiddenForUserIds?: string[];
 }
 
+export interface ShiftRSVP {
+  id: string;
+  shiftId: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+}
+
 export interface AppState {
   currentUser: User | null;
   users: User[];
   shifts: Shift[];
   sessions: TrainingSession[];
+  rsvps: ShiftRSVP[];
   isOffline: boolean;
 }

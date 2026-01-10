@@ -1,5 +1,5 @@
 
-import { User, Shift, TrainingSession } from '../types';
+import { User, Shift, TrainingSession, ShiftRSVP } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const ensureConfig = () => {
@@ -63,6 +63,30 @@ export const db = {
     delete: async (id: string) => {
       ensureConfig();
       const { error } = await supabase.from('sessions').delete().eq('id', id);
+      if (error) throw error;
+    }
+  },
+  rsvps: {
+    getAll: async (): Promise<ShiftRSVP[]> => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase.from('rsvps').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    save: async (rsvp: ShiftRSVP) => {
+      ensureConfig();
+      const { data, error } = await supabase.from('rsvps').upsert(rsvp).select();
+      if (error) throw error;
+      return data;
+    },
+    delete: async (id: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('rsvps').delete().eq('id', id);
+      if (error) throw error;
+    },
+    deleteByUserAndDate: async (userId: string, shiftId: string, date: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('rsvps').delete().match({ userId, shiftId, date });
       if (error) throw error;
     }
   }

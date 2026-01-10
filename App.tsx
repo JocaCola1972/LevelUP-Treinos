@@ -16,6 +16,7 @@ const App: React.FC = () => {
     users: [],
     shifts: [],
     sessions: [],
+    rsvps: [],
     isOffline: false,
   });
   const [loading, setLoading] = useState(true);
@@ -32,34 +33,53 @@ const App: React.FC = () => {
     try {
       setInitError(null);
       setLoading(true);
-      const [users, shifts, sessions] = await Promise.all([
+      const [users, shifts, sessions, rsvps] = await Promise.all([
         db.users.getAll(),
         db.shifts.getAll(),
-        db.sessions.getAll()
+        db.sessions.getAll(),
+        db.rsvps.getAll()
       ]);
       setAppState(prev => ({
         ...prev,
         users,
         shifts,
         sessions,
+        rsvps,
       }));
     } catch (err: any) {
-      console.error("Erro detalhado do Supabase:", err);
+      console.error("Erro detectado na base de dados:", err);
       
       let msg = "Erro desconhecido";
-      if (err.message) msg = err.message;
-      else if (err.error_description) msg = err.error_description;
-      else if (typeof err === 'string') msg = err;
-      else {
-        try {
-          msg = JSON.stringify(err);
-        } catch {
-          msg = String(err);
+      
+      if (err) {
+        if (typeof err === 'string') {
+          msg = err;
+        } else if (typeof err === 'object') {
+          // Extrair informações de erros específicos do Supabase/PostgREST ou Error nativo
+          const parts = [];
+          
+          if (err.message) parts.push(err.message);
+          if (err.details) parts.push(`Detalhes: ${err.details}`);
+          if (err.hint) parts.push(`Sugestão: ${err.hint}`);
+          if (err.code) parts.push(`Código: ${err.code}`);
+          
+          if (parts.length > 0) {
+            msg = parts.join(' | ');
+          } else {
+            try {
+              const stringified = JSON.stringify(err);
+              msg = stringified === '{}' ? String(err) : stringified;
+            } catch {
+              msg = String(err);
+            }
+          }
         }
       }
       
-      if (msg.includes('relation "users" does not exist') || msg.includes('42P01')) {
-        setInitError("Tabelas não encontradas no Supabase. É necessário criar a estrutura da base de dados.");
+      const lowerMsg = msg.toLowerCase();
+      // Se for um erro de falta de tabelas ou colunas, mostrar a mensagem amigável com o SQL
+      if (lowerMsg.includes('relation') || lowerMsg.includes('42p01') || lowerMsg.includes('column') || lowerMsg.includes('not found') || lowerMsg.includes('does not exist')) {
+        setInitError("Estrutura da base de dados desatualizada ou tabelas em falta. É necessário executar o SQL de atualização no Dashboard do Supabase.");
       } else {
         setInitError(msg);
       }
@@ -94,12 +114,13 @@ const App: React.FC = () => {
             ❌
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Erro na Base de Dados</h2>
-          <p className="text-red-500 font-medium mb-6 text-sm md:text-base break-words">{initError}</p>
+          <p className="text-red-500 font-medium mb-6 text-xs md:text-sm break-words px-2">{initError}</p>
           
           <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 text-left text-xs md:text-sm mb-6">
-            <p className="font-bold text-slate-700 mb-4">Para corrigir, executa este SQL no SQL Editor do teu Dashboard do Supabase:</p>
-            <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[9px] md:text-[10px] overflow-x-auto leading-relaxed font-mono">
-{`CREATE TABLE users (
+            <p className="font-bold text-slate-700 mb-4">Para corrigir, copia e executa este SQL no "SQL Editor" do teu Dashboard do Supabase:</p>
+            <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[9px] md:text-[10px] overflow-x-auto leading-relaxed font-mono select-all whitespace-pre-wrap">
+{`-- 1. Criar tabelas se não existirem
+CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   role TEXT NOT NULL,
@@ -109,7 +130,7 @@ const App: React.FC = () => {
   active BOOLEAN DEFAULT true
 );
 
-CREATE TABLE shifts (
+CREATE TABLE IF NOT EXISTS shifts (
   id TEXT PRIMARY KEY,
   "dayOfWeek" TEXT NOT NULL,
   "startTime" TEXT NOT NULL,
@@ -120,7 +141,7 @@ CREATE TABLE shifts (
   "startDate" TEXT
 );
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   "shiftId" TEXT NOT NULL,
   date TEXT NOT NULL,
@@ -133,7 +154,23 @@ CREATE TABLE sessions (
   "hiddenForUserIds" TEXT[] DEFAULT '{}'
 );
 
--- Inserir admin inicial
+CREATE TABLE IF NOT EXISTS rsvps (
+  id TEXT PRIMARY KEY,
+  "shiftId" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  date TEXT NOT NULL,
+  UNIQUE("userId", "shiftId", date)
+);
+
+-- 2. Garantir que as colunas novas existem em tabelas já criadas
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND column_name='hiddenForUserIds') THEN
+        ALTER TABLE sessions ADD COLUMN "hiddenForUserIds" TEXT[] DEFAULT '{}';
+    END IF;
+END $$;
+
+-- 3. Inserir admin inicial
 INSERT INTO users (id, name, role, avatar, phone, password, active)
 VALUES ('admin-1', 'Admin Especial', 'ADMIN', 'https://picsum.photos/seed/admin917/200', '917772010', '123', true)
 ON CONFLICT (phone) DO NOTHING;`}

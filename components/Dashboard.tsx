@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, Role, TrainingSession, Shift } from '../types';
+import { AppState, Role, TrainingSession, Shift, ShiftRSVP } from '../types';
 import { getTrainingTips } from '../services/gemini';
 import { db } from '../services/db';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -13,6 +13,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const [aiTips, setAiTips] = useState<string>("A carregar dicas...");
+  const [isUpdatingRSVP, setIsUpdatingRSVP] = useState(false);
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
 
@@ -23,6 +24,24 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
     fetchTips();
   }, []);
+
+  // Lógica para calcular a data da próxima ocorrência de um dia da semana
+  const getNextOccurrenceDate = (dayOfWeek: string) => {
+    const dayMap: Record<string, number> = {
+      'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
+    };
+    const targetDay = dayMap[dayOfWeek];
+    const now = new Date();
+    const currentDay = now.getDay();
+    
+    let daysToAdd = (targetDay - currentDay + 7) % 7;
+    
+    // Se for hoje mas a hora já passou, não lidamos com isso aqui de forma complexa,
+    // apenas retornamos a data do próximo dia correspondente.
+    const result = new Date(now);
+    result.setDate(now.getDate() + daysToAdd);
+    return result.toISOString().split('T')[0];
+  };
 
   // Lógica para encontrar o próximo treino agendado
   const nextTraining = useMemo(() => {
@@ -61,12 +80,54 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
     const next = sortedShifts[0];
     const isToday = dayMap[next.dayOfWeek] === currentDayIdx;
+    const instanceDate = getNextOccurrenceDate(next.dayOfWeek);
     
     return {
+      id: next.id,
       label: isToday ? 'Hoje' : next.dayOfWeek,
-      time: next.startTime
+      time: next.startTime,
+      date: instanceDate
     };
   }, [state.shifts, userId, userRole]);
+
+  // Verificar se o utilizador atual confirmou presença
+  const hasConfirmed = useMemo(() => {
+    if (!nextTraining || !userId) return false;
+    return state.rsvps.some(r => r.shiftId === nextTraining.id && r.userId === userId && r.date === nextTraining.date);
+  }, [state.rsvps, nextTraining, userId]);
+
+  // Lista de confirmados para o Admin
+  const attendeesForNext = useMemo(() => {
+    if (!nextTraining || userRole !== Role.ADMIN) return [];
+    return state.rsvps
+      .filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date)
+      .map(r => state.users.find(u => u.id === r.userId))
+      .filter(Boolean);
+  }, [state.rsvps, nextTraining, userRole, state.users]);
+
+  const handleToggleRSVP = async () => {
+    if (!nextTraining || !userId || isUpdatingRSVP) return;
+    
+    setIsUpdatingRSVP(true);
+    try {
+      if (hasConfirmed) {
+        await db.rsvps.deleteByUserAndDate(userId, nextTraining.id, nextTraining.date);
+      } else {
+        const newRSVP: ShiftRSVP = {
+          id: `${userId}-${nextTraining.id}-${nextTraining.date}`,
+          shiftId: nextTraining.id,
+          userId: userId,
+          date: nextTraining.date
+        };
+        await db.rsvps.save(newRSVP);
+      }
+      refresh();
+    } catch (err) {
+      console.error("Erro ao atualizar RSVP:", err);
+    } finally {
+      setIsUpdatingRSVP(false);
+    }
+  };
 
   // Lógica para calcular estatísticas de periodicidade e tempo de treino
   const trainingStats = useMemo(() => {
@@ -80,10 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
     if (myShifts.length === 0) return { recurrence: 'Plano', totalHours: '0' };
 
-    // Soma dos minutos semanais
     const totalMinutesPerWeek = myShifts.reduce((acc, s) => acc + s.durationMinutes, 0);
-    
-    // Determinamos a periodicidade dominante (usando a do primeiro turno encontrado)
     const mainRecurrence = myShifts[0].recurrence;
 
     return {
@@ -109,14 +167,58 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           <div className="relative z-10">
             <h2 className="text-xl md:text-3xl font-bold mb-1">Olá, {state.currentUser?.name}! 👋</h2>
             <p className="text-petrol-200 text-xs md:text-base mb-4 md:mb-6">Pronto para a sessão de hoje?</p>
-            <div className="flex gap-3 md:gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               {/* Card Próximo Treino */}
-              <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">Próximo</p>
-                <p className="text-sm md:text-lg font-semibold truncate">
+              <div className={`backdrop-blur-md p-3 md:p-4 rounded-2xl border transition-all flex-1 ${hasConfirmed ? 'bg-padelgreen-500/20 border-padelgreen-400/30 shadow-lg shadow-padelgreen-400/10' : 'bg-white/10 border-white/10'}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${hasConfirmed ? 'text-padelgreen-300' : 'text-padelgreen-400'}`}>Próximo</p>
+                  {hasConfirmed && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
+                </div>
+                <p className="text-sm md:text-lg font-semibold truncate mb-3">
                   {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda'}
                 </p>
+                
+                {nextTraining && userRole !== Role.ADMIN && (
+                  <button 
+                    onClick={handleToggleRSVP}
+                    disabled={isUpdatingRSVP}
+                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      hasConfirmed 
+                        ? 'bg-padelgreen-400 text-petrol-950 hover:bg-padelgreen-300' 
+                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                    }`}
+                  >
+                    {isUpdatingRSVP ? '...' : hasConfirmed ? 'Vou Estar Presente' : 'Confirmar Presença'}
+                  </button>
+                )}
+
+                {/* Admin View: Quem vai estar presente */}
+                {userRole === Role.ADMIN && attendeesForNext.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-white/10">
+                    <p className="text-[9px] text-petrol-300 uppercase font-bold mb-2">Confirmados ({attendeesForNext.length})</p>
+                    <div className="flex -space-x-2 overflow-hidden">
+                      {attendeesForNext.slice(0, 5).map((att: any) => (
+                        <img 
+                          key={att.id} 
+                          src={att.avatar} 
+                          title={att.name} 
+                          className="w-6 h-6 rounded-full border border-petrol-900 object-cover" 
+                          alt="" 
+                        />
+                      ))}
+                      {attendeesForNext.length > 5 && (
+                        <div className="w-6 h-6 rounded-full bg-petrol-700 flex items-center justify-center text-[8px] font-bold border border-petrol-900">
+                          +{attendeesForNext.length - 5}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {userRole === Role.ADMIN && nextTraining && attendeesForNext.length === 0 && (
+                  <p className="text-[9px] text-petrol-400 italic mt-2">Nenhuma confirmação ainda.</p>
+                )}
               </div>
+              
               {/* Card Periodicidade e Tempo */}
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">
