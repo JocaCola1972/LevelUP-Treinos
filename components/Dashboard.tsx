@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
-import { AppState, Role, TrainingSession } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppState, Role, TrainingSession, Shift } from '../types';
 import { getTrainingTips } from '../services/gemini';
 import { db } from '../services/db';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { DAYS_OF_WEEK } from '../constants';
 
 interface DashboardProps {
   state: AppState;
@@ -12,7 +13,8 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const [aiTips, setAiTips] = useState<string>("A carregar dicas...");
-  const [isActivating, setIsActivating] = useState(false);
+  const userRole = state.currentUser?.role;
+  const userId = state.currentUser?.id;
 
   useEffect(() => {
     const fetchTips = async () => {
@@ -22,8 +24,55 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     fetchTips();
   }, []);
 
+  const nextTraining = useMemo(() => {
+    if (!userId || !state.shifts.length) return null;
+
+    // Filtrar turnos relevantes para o utilizador
+    const myShifts = state.shifts.filter(shift => {
+      if (userRole === Role.ADMIN) return true;
+      if (userRole === Role.COACH) return shift.coachId === userId;
+      return shift.studentIds.includes(userId);
+    });
+
+    if (myShifts.length === 0) return null;
+
+    const now = new Date();
+    const currentDayIdx = (now.getDay() + 6) % 7; // Ajustar para Seg=0, Dom=6
+    const currentTimeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+    const dayMap: Record<string, number> = {};
+    DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
+
+    // Encontrar o turno mais próximo
+    const sortedShifts = [...myShifts].sort((a, b) => {
+      const dayA = dayMap[a.dayOfWeek];
+      const dayB = dayMap[b.dayOfWeek];
+      
+      // Calcular "distância" em minutos desde o início da semana
+      const getWeight = (dayIdx: number, time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        let weight = (dayIdx * 24 * 60) + (h * 60) + m;
+        // Se já passou hoje, conta como sendo na próxima semana
+        const currentWeight = (currentDayIdx * 24 * 60) + (now.getHours() * 60) + now.getMinutes();
+        if (weight <= currentWeight) {
+          weight += 7 * 24 * 60;
+        }
+        return weight;
+      };
+
+      return getWeight(dayA, a.startTime) - getWeight(dayB, b.startTime);
+    });
+
+    const next = sortedShifts[0];
+    const isToday = dayMap[next.dayOfWeek] === currentDayIdx;
+    
+    return {
+      label: isToday ? 'Hoje' : next.dayOfWeek,
+      time: next.startTime
+    };
+  }, [state.shifts, userId, userRole]);
+
   const activeSession = state.sessions.find(s => s.isActive);
-  const userRole = state.currentUser?.role;
 
   const handleStartSession = (shiftId: string) => {
     const newSession: TrainingSession = {
@@ -58,7 +107,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
             <div className="flex gap-3 md:gap-4">
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">Próximo</p>
-                <p className="text-sm md:text-lg font-semibold">Hoje, 18:30h</p>
+                <p className="text-sm md:text-lg font-semibold">
+                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agendamento'}
+                </p>
               </div>
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">Mensal</p>
