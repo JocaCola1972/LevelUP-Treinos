@@ -45,8 +45,19 @@ const App: React.FC = () => {
       }));
     } catch (err: any) {
       console.error("Erro detalhado do Supabase:", err);
-      // Extrair mensagem de erro legível
-      const msg = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      
+      // Extração robusta de mensagem de erro
+      let msg = "Erro desconhecido";
+      if (err.message) msg = err.message;
+      else if (err.error_description) msg = err.error_description;
+      else if (typeof err === 'string') msg = err;
+      else {
+        try {
+          msg = JSON.stringify(err);
+        } catch {
+          msg = String(err);
+        }
+      }
       
       if (msg.includes('relation "users" does not exist') || msg.includes('42P01')) {
         setInitError("Tabelas não encontradas no Supabase. É necessário criar a estrutura da base de dados.");
@@ -76,20 +87,19 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, currentUser: null }));
   };
 
-  // Ecrã de erro para tabelas em falta ou falhas de ligação
   if (initError) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center">
-        <div className="max-w-2xl bg-white rounded-[40px] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
-          <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center text-red-600 text-4xl mb-6 mx-auto">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 text-center">
+        <div className="max-w-2xl w-full bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-red-100 rounded-3xl flex items-center justify-center text-red-600 text-3xl md:text-4xl mb-6 mx-auto">
             ❌
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Erro na Base de Dados</h2>
-          <p className="text-red-500 font-medium mb-6">{initError}</p>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Erro na Base de Dados</h2>
+          <p className="text-red-500 font-medium mb-6 text-sm md:text-base break-words">{initError}</p>
           
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left text-sm mb-6">
+          <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 text-left text-xs md:text-sm mb-6">
             <p className="font-bold text-slate-700 mb-4">Para corrigir, executa este SQL no SQL Editor do teu Dashboard do Supabase:</p>
-            <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[10px] overflow-x-auto leading-relaxed font-mono">
+            <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[9px] md:text-[10px] overflow-x-auto leading-relaxed font-mono">
 {`CREATE TABLE users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -141,27 +151,17 @@ ON CONFLICT (phone) DO NOTHING;`}
     );
   }
 
-  // Se o Supabase não estiver configurado
   if (!isSupabaseConfigured) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center">
-        <div className="max-w-md bg-white rounded-[40px] p-10 shadow-2xl animate-in fade-in zoom-in duration-300">
+        <div className="max-w-md bg-white rounded-[40px] p-10 shadow-2xl">
           <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center text-amber-600 text-4xl mb-6 mx-auto">
             ⚠️
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Configuração Necessária</h2>
           <p className="text-slate-600 mb-8 leading-relaxed">
-            Para ligar a base de dados, tens de definir as variáveis de ambiente <code className="bg-slate-100 px-2 py-1 rounded text-pink-600 font-mono text-sm">SUPABASE_URL</code> e <code className="bg-slate-100 px-2 py-1 rounded text-pink-600 font-mono text-sm">SUPABASE_ANON_KEY</code>.
+            Define as variáveis <code className="bg-slate-100 px-2 py-1 rounded text-pink-600 font-mono text-sm">SUPABASE_URL</code> e <code className="bg-slate-100 px-2 py-1 rounded text-pink-600 font-mono text-sm">SUPABASE_ANON_KEY</code>.
           </p>
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-left text-sm space-y-3 mb-4">
-            <p className="font-bold text-slate-700">Como resolver:</p>
-            <ol className="list-decimal ml-4 text-slate-500 space-y-2">
-              <li>Acede ao teu projeto no <strong>Supabase</strong>.</li>
-              <li>Vai a <strong>Project Settings > API</strong>.</li>
-              <li>Copia o URL e a chave 'anon' public.</li>
-              <li>Adiciona-os aos segredos/ambiente deste editor.</li>
-            </ol>
-          </div>
         </div>
       </div>
     );

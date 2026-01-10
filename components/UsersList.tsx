@@ -22,29 +22,29 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-petrol-900">Directório</h2>
-          <p className="text-slate-500 text-sm">Gerencie coaches, alunos e administradores.</p>
+          <h2 className="text-xl md:text-2xl font-bold text-petrol-900">Directório</h2>
+          <p className="text-slate-500 text-xs md:text-sm">Gestão de toda a comunidade.</p>
         </div>
         <button 
           onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
-          className="bg-petrol-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-petrol-950 transition-all flex items-center gap-2 shadow-lg shadow-petrol-900/20"
+          className="w-full sm:w-auto bg-petrol-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-petrol-950 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
         >
           <span>+</span> Novo Utilizador
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {state.users.map(user => (
-          <div key={user.id} className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col items-center text-center group hover:shadow-xl transition-all hover:border-padelgreen-400">
+          <div key={user.id} className="bg-white rounded-3xl border border-slate-200 p-5 md:p-6 flex flex-col items-center text-center group hover:shadow-xl transition-all hover:border-padelgreen-400">
             <div className="relative mb-4">
-              <img src={user.avatar} className="w-24 h-24 rounded-full object-cover ring-4 ring-slate-50 group-hover:ring-padelgreen-100 transition-all" alt="" />
-              <div className={`absolute bottom-0 right-0 w-6 h-6 rounded-full border-4 border-white ${user.active !== false ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+              <img src={user.avatar} className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover ring-4 ring-slate-50 group-hover:ring-padelgreen-100 transition-all" alt="" />
+              <div className={`absolute bottom-0 right-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-4 border-white ${user.active !== false ? 'bg-green-500' : 'bg-slate-300'}`}></div>
             </div>
-            <h3 className="text-lg font-bold text-petrol-900 mb-1">{user.name}</h3>
-            <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4 ${
+            <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-1 line-clamp-1">{user.name}</h3>
+            <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4 ${
               user.role === Role.ADMIN ? 'bg-red-50 text-red-600' :
               user.role === Role.COACH ? 'bg-blue-50 text-blue-600' : 'bg-padelgreen-50 text-padelgreen-700'
             }`}>
@@ -52,19 +52,19 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
             </span>
             
             <div className="w-full space-y-2 mt-auto">
-              <div className="flex items-center justify-center gap-2 text-sm text-slate-500 py-2 bg-slate-50 rounded-xl mb-4">
+              <div className="flex items-center justify-center gap-2 text-xs md:text-sm text-slate-500 py-2 bg-slate-50 rounded-xl mb-4">
                 <span>📞</span> {user.phone}
               </div>
               <div className="flex gap-2">
                 <button 
                   onClick={() => { setEditingUser(user); setIsModalOpen(true); }}
-                  className="flex-1 py-2 text-sm font-bold text-petrol-700 hover:bg-petrol-50 rounded-xl transition-all"
+                  className="flex-1 py-2 text-xs md:text-sm font-bold text-petrol-700 hover:bg-petrol-50 rounded-xl transition-all active:scale-95"
                 >
                   Editar
                 </button>
                 <button 
                   onClick={() => handleDelete(user.id)}
-                  className="flex-1 py-2 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  className="flex-1 py-2 text-xs md:text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
                 >
                   Apagar
                 </button>
@@ -75,9 +75,10 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-petrol-950/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h3 className="text-2xl font-bold text-petrol-900 mb-6">{editingUser ? 'Editar Perfil' : 'Criar Utilizador'}</h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-petrol-950/40 backdrop-blur-sm">
+          <div className="bg-white rounded-t-[40px] sm:rounded-3xl w-full max-w-md p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden"></div>
+            <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6 text-center sm:text-left">{editingUser ? 'Editar Perfil' : 'Criar Utilizador'}</h3>
             <form onSubmit={async (e) => {
               e.preventDefault();
               setSaving(true);
@@ -95,47 +96,46 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
               await refresh();
               setSaving(false);
               setIsModalOpen(false);
-            }} className="space-y-4">
+            }} className="space-y-4 pb-8 sm:pb-0">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo</label>
-                <input required name="name" defaultValue={editingUser?.name} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none" />
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Nome Completo</label>
+                <input required name="name" defaultValue={editingUser?.name} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Telefone</label>
-                <input required name="phone" defaultValue={editingUser?.phone} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none" />
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Telefone</label>
+                <input required name="phone" defaultValue={editingUser?.phone} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Função (Role)</label>
-                <select name="role" defaultValue={editingUser?.role || Role.STUDENT} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none">
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Função</label>
+                <select name="role" defaultValue={editingUser?.role || Role.STUDENT} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all">
                   <option value={Role.STUDENT}>Aluno</option>
                   <option value={Role.COACH}>Treinador</option>
                   <option value={Role.ADMIN}>Administrador</option>
                 </select>
               </div>
               <div className="relative">
-                <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Password</label>
                 <div className="relative">
                   <input 
                     name="password" 
                     type={showPassword ? "text" : "password"}
                     placeholder="Padrão: 123"
                     defaultValue={editingUser?.password}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none" 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" 
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase tracking-widest"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold uppercase tracking-widest"
                   >
                     {showPassword ? 'Ocultar' : 'Ver'}
                   </button>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 ml-2">Se deixar vazio, a password será '123'.</p>
               </div>
               <div className="flex gap-4 pt-4">
-                <button type="button" disabled={saving} onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 py-3 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all">
-                  {saving ? 'A guardar...' : 'Guardar'}
+                <button type="button" disabled={saving} onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
+                <button type="submit" disabled={saving} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">
+                  {saving ? '...' : 'Guardar'}
                 </button>
               </div>
             </form>
