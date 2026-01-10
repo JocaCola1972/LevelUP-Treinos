@@ -24,10 +24,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     fetchTips();
   }, []);
 
+  // Lógica para encontrar o próximo treino agendado
   const nextTraining = useMemo(() => {
     if (!userId || !state.shifts.length) return null;
 
-    // Filtrar turnos relevantes para o utilizador
     const myShifts = state.shifts.filter(shift => {
       if (userRole === Role.ADMIN) return true;
       if (userRole === Role.COACH) return shift.coachId === userId;
@@ -37,22 +37,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     if (myShifts.length === 0) return null;
 
     const now = new Date();
-    const currentDayIdx = (now.getDay() + 6) % 7; // Ajustar para Seg=0, Dom=6
-    const currentTimeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    const currentDayIdx = (now.getDay() + 6) % 7; // Seg=0 ... Dom=6
 
     const dayMap: Record<string, number> = {};
     DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
 
-    // Encontrar o turno mais próximo
     const sortedShifts = [...myShifts].sort((a, b) => {
       const dayA = dayMap[a.dayOfWeek];
       const dayB = dayMap[b.dayOfWeek];
       
-      // Calcular "distância" em minutos desde o início da semana
       const getWeight = (dayIdx: number, time: string) => {
         const [h, m] = time.split(':').map(Number);
         let weight = (dayIdx * 24 * 60) + (h * 60) + m;
-        // Se já passou hoje, conta como sendo na próxima semana
         const currentWeight = (currentDayIdx * 24 * 60) + (now.getHours() * 60) + now.getMinutes();
         if (weight <= currentWeight) {
           weight += 7 * 24 * 60;
@@ -69,6 +65,30 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     return {
       label: isToday ? 'Hoje' : next.dayOfWeek,
       time: next.startTime
+    };
+  }, [state.shifts, userId, userRole]);
+
+  // Lógica para calcular estatísticas de periodicidade e tempo de treino
+  const trainingStats = useMemo(() => {
+    if (!userId || !state.shifts.length) return { recurrence: 'Plano', totalHours: '0' };
+
+    const myShifts = state.shifts.filter(shift => {
+      if (userRole === Role.ADMIN) return true;
+      if (userRole === Role.COACH) return shift.coachId === userId;
+      return shift.studentIds.includes(userId);
+    });
+
+    if (myShifts.length === 0) return { recurrence: 'Plano', totalHours: '0' };
+
+    // Soma dos minutos semanais
+    const totalMinutesPerWeek = myShifts.reduce((acc, s) => acc + s.durationMinutes, 0);
+    
+    // Determinamos a periodicidade dominante (usando a do primeiro turno encontrado)
+    const mainRecurrence = myShifts[0].recurrence;
+
+    return {
+      recurrence: mainRecurrence,
+      totalHours: (totalMinutesPerWeek / 60).toFixed(1)
     };
   }, [state.shifts, userId, userRole]);
 
@@ -98,22 +118,26 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-4">
-      {/* Welcome & AI Tips */}
+      {/* Welcome & Stats Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2 bg-gradient-to-br from-petrol-800 to-petrol-950 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[180px] md:min-h-[240px]">
           <div className="relative z-10">
             <h2 className="text-xl md:text-3xl font-bold mb-1">Olá, {state.currentUser?.name}! 👋</h2>
             <p className="text-petrol-200 text-xs md:text-base mb-4 md:mb-6">Pronto para a sessão de hoje?</p>
             <div className="flex gap-3 md:gap-4">
+              {/* Card Próximo Treino */}
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">Próximo</p>
-                <p className="text-sm md:text-lg font-semibold">
-                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agendamento'}
+                <p className="text-sm md:text-lg font-semibold truncate">
+                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda'}
                 </p>
               </div>
+              {/* Card Periodicidade e Tempo */}
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">Mensal</p>
-                <p className="text-sm md:text-lg font-semibold">12.5h</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">
+                  {trainingStats.recurrence}
+                </p>
+                <p className="text-sm md:text-lg font-semibold">{trainingStats.totalHours}h/sem</p>
               </div>
             </div>
           </div>
