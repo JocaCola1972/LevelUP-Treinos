@@ -46,7 +46,6 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error("Erro detalhado do Supabase:", err);
       
-      // Extração robusta de mensagem de erro
       let msg = "Erro desconhecido";
       if (err.message) msg = err.message;
       else if (err.error_description) msg = err.error_description;
@@ -130,7 +129,8 @@ CREATE TABLE sessions (
   "attendeeIds" TEXT[] DEFAULT '{}',
   "youtubeUrl" TEXT,
   notes TEXT,
-  "aiInsights" TEXT
+  "aiInsights" TEXT,
+  "hiddenForUserIds" TEXT[] DEFAULT '{}'
 );
 
 -- Inserir admin inicial

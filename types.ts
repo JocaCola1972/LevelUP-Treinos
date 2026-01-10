@@ -42,6 +42,7 @@ export interface TrainingSession {
   youtubeUrl?: string;
   notes?: string;
   aiInsights?: string;
+  hiddenForUserIds?: string[];
 }
 
 export interface AppState {

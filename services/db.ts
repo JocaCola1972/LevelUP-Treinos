@@ -59,6 +59,11 @@ export const db = {
       const { data, error } = await supabase.from('sessions').upsert(session).select();
       if (error) throw error;
       return data;
+    },
+    delete: async (id: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('sessions').delete().eq('id', id);
+      if (error) throw error;
     }
   }
 };
