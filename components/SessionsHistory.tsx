@@ -61,10 +61,31 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     refresh();
   };
 
-  const historicalSessions = state.sessions.filter(s => 
-    !s.isActive && 
-    !(s.hiddenForUserIds || []).includes(userId || '')
-  );
+  // Filtra as sessões históricas com base na participação real do utilizador
+  const historicalSessions = state.sessions.filter(s => {
+    // 1. Apenas sessões concluídas
+    if (s.isActive || !s.completed) return false;
+    
+    // 2. Respeitar se o utilizador escondeu a sessão
+    if ((s.hiddenForUserIds || []).includes(userId || '')) return false;
+
+    // 3. Administradores vêem tudo para gestão
+    if (userRole === Role.ADMIN) return true;
+
+    const shift = state.shifts.find(sh => sh.id === s.shiftId);
+    
+    // 4. Coaches vêem sessões que deram (coachId) ou onde foram alunos (raro mas possível)
+    if (userRole === Role.COACH) {
+      return shift?.coachId === userId || s.attendeeIds.includes(userId || '');
+    }
+
+    // 5. Alunos vêem apenas sessões onde estiveram presentes
+    if (userRole === Role.STUDENT) {
+      return s.attendeeIds.includes(userId || '');
+    }
+
+    return false;
+  });
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
@@ -129,51 +150,59 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             🔄 Atualizar
           </button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {historicalSessions.map(session => {
-            const shift = state.shifts.find(s => s.id === session.shiftId);
-            return (
-              <div 
-                key={session.id} 
-                className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-lg transition-all group/card"
-              >
-                {isAdmin && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }}
-                    className="absolute top-4 right-4 p-2 bg-red-50 text-red-400 rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10"
-                  >
-                    🗑️
-                  </button>
-                )}
-                
+        
+        {historicalSessions.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {historicalSessions.map(session => {
+              const shift = state.shifts.find(s => s.id === session.shiftId);
+              return (
                 <div 
-                  onClick={() => setSelectedSession(session)}
-                  className="cursor-pointer"
+                  key={session.id} 
+                  className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-lg transition-all group/card"
                 >
-                  <div className="flex justify-between items-start mb-4 pr-8">
-                    <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(session.date).toLocaleDateString()}</span>
-                    <span className={`text-[9px] md:text-[10px] font-bold px-2.5 py-1 rounded-full ${session.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {session.completed ? 'CONCLUÍDO' : 'PENDENTE'}
-                    </span>
-                  </div>
-                  <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-2 leading-tight">
-                    {shift?.dayOfWeek} <span className="text-slate-400 font-medium">às {shift?.startTime}</span>
-                  </h3>
-                  <p className="text-xs md:text-sm text-slate-500 line-clamp-2 mb-4 h-8 md:h-10">
-                    {session.notes || "Nenhuma nota registada."}
-                  </p>
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="flex -space-x-2">
-                      {session.attendeeIds.slice(0, 4).map(id => (
-                        <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white" alt="" />
-                      ))}
+                  {isAdmin && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }}
+                      className="absolute top-4 right-4 p-2 bg-red-50 text-red-400 rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                  
+                  <div 
+                    onClick={() => setSelectedSession(session)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex justify-between items-start mb-4 pr-8">
+                      <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(session.date).toLocaleDateString()}</span>
+                      <span className={`text-[9px] md:text-[10px] font-bold px-2.5 py-1 rounded-full ${session.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {session.completed ? 'CONCLUÍDO' : 'PENDENTE'}
+                      </span>
+                    </div>
+                    <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-2 leading-tight">
+                      {shift?.dayOfWeek} <span className="text-slate-400 font-medium">às {shift?.startTime}</span>
+                    </h3>
+                    <p className="text-xs md:text-sm text-slate-500 line-clamp-2 mb-4 h-8 md:h-10">
+                      {session.notes || "Nenhuma nota registada."}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex -space-x-2">
+                        {session.attendeeIds.slice(0, 4).map(id => (
+                          <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white" alt="" />
+                        ))}
+                      </div>
+                      {session.youtubeUrl && <span className="text-red-500 text-lg">▶️</span>}
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-300 text-center">
+            <p className="text-slate-400 font-medium">Não foram encontradas sessões no seu histórico.</p>
+          </div>
+        )}
       </div>
 
       {/* Modal de Detalhes */}
