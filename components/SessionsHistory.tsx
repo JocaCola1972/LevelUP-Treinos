@@ -16,6 +16,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
   const isAdmin = userRole === Role.ADMIN;
+  const isStaff = userRole === Role.ADMIN || userRole === Role.COACH;
 
   const handleStartSession = async (shiftId: string) => {
     const newSession: TrainingSession = {
@@ -200,9 +201,10 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                 </div>
               </div>
 
-              {selectedSession.isActive ? (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Notas da Sessão</h4>
+              {/* Seção de Notas */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Notas do Treinador</h4>
+                {isStaff ? (
                   <textarea 
                     placeholder="Registe as observações técnicas aqui..."
                     defaultValue={selectedSession.notes}
@@ -211,36 +213,72 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                       await db.sessions.save(updated);
                       refresh();
                     }}
-                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32"
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32 transition-all"
                   />
-                </div>
-              ) : (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Notas do Treinador</h4>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm md:text-base min-h-24">
-                    {selectedSession.notes || "Sem notas disponíveis."}
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm md:text-base min-h-24 leading-relaxed">
+                    {selectedSession.notes || "Sem notas disponíveis para este treino."}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {selectedSession.youtubeUrl && (
-                <a href={selectedSession.youtubeUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center md:justify-start gap-3 p-4 bg-red-50 text-red-700 rounded-2xl font-bold border border-red-100">
-                  <span>📺</span> Ver Vídeo no YouTube
-                </a>
-              )}
+              {/* Seção de Vídeo (YouTube) */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vídeo da Sessão (YouTube)</h4>
+                {isStaff ? (
+                  <div className="space-y-3">
+                    <input 
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      defaultValue={selectedSession.youtubeUrl}
+                      onBlur={async (e) => {
+                        const updated = { ...selectedSession, youtubeUrl: e.target.value };
+                        await db.sessions.save(updated);
+                        refresh();
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none text-sm transition-all"
+                    />
+                    {selectedSession.youtubeUrl && (
+                      <a 
+                        href={selectedSession.youtubeUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="inline-flex items-center gap-2 text-xs font-bold text-red-600 hover:text-red-700 ml-1"
+                      >
+                        <span>▶️</span> Testar Link do Vídeo
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  selectedSession.youtubeUrl ? (
+                    <a 
+                      href={selectedSession.youtubeUrl} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="flex items-center justify-center md:justify-start gap-3 p-4 bg-red-50 text-red-700 rounded-2xl font-bold border border-red-100 hover:bg-red-100 transition-all active:scale-[0.98]"
+                    >
+                      <span className="text-xl">📺</span> Ver Gravação do Treino no YouTube
+                    </a>
+                  ) : (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-sm italic">
+                      Nenhum vídeo disponível para esta sessão.
+                    </div>
+                  )
+                )}
+              </div>
             </div>
 
             <div className="flex gap-4 mt-8">
               <button 
                 onClick={() => setSelectedSession(null)}
-                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl"
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all active:scale-[0.98]"
               >
                 Fechar
               </button>
               {selectedSession.isActive && isAdmin && (
                 <button 
                   onClick={() => { handleFinishSession(selectedSession); setSelectedSession(null); }}
-                  className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl"
+                  className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-[0.98]"
                 >
                   Finalizar Treino
                 </button>
