@@ -1,7 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, Role, TrainingSession, Shift, ShiftRSVP } from '../types';
-import { getTrainingTips } from '../services/gemini';
+import React, { useState, useMemo } from 'react';
+import { AppState, Role, ShiftRSVP } from '../types';
 import { db } from '../services/db';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { DAYS_OF_WEEK } from '../constants';
@@ -12,18 +11,9 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
-  const [aiTips, setAiTips] = useState<string>("A carregar dicas...");
   const [isUpdatingRSVP, setIsUpdatingRSVP] = useState(false);
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
-
-  useEffect(() => {
-    const fetchTips = async () => {
-      const tips = await getTrainingTips("vólei e bandeja");
-      setAiTips(tips);
-    };
-    fetchTips();
-  }, []);
 
   // Lógica para calcular a data da próxima ocorrência de um dia da semana
   const getNextOccurrenceDate = (dayOfWeek: string) => {
@@ -35,9 +25,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     const currentDay = now.getDay();
     
     let daysToAdd = (targetDay - currentDay + 7) % 7;
-    
-    // Se for hoje mas a hora já passou, não lidamos com isso aqui de forma complexa,
-    // apenas retornamos a data do próximo dia correspondente.
     const result = new Date(now);
     result.setDate(now.getDate() + daysToAdd);
     return result.toISOString().split('T')[0];
@@ -56,7 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     if (myShifts.length === 0) return null;
 
     const now = new Date();
-    const currentDayIdx = (now.getDay() + 6) % 7; // Seg=0 ... Dom=6
+    const currentDayIdx = (now.getDay() + 6) % 7; 
 
     const dayMap: Record<string, number> = {};
     DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
@@ -90,13 +77,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
   }, [state.shifts, userId, userRole]);
 
-  // Verificar se o utilizador atual confirmou presença
   const hasConfirmed = useMemo(() => {
     if (!nextTraining || !userId) return false;
     return state.rsvps.some(r => r.shiftId === nextTraining.id && r.userId === userId && r.date === nextTraining.date);
   }, [state.rsvps, nextTraining, userId]);
 
-  // Lista de confirmados para o Admin
   const attendeesForNext = useMemo(() => {
     if (!nextTraining || userRole !== Role.ADMIN) return [];
     return state.rsvps
@@ -129,7 +114,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     }
   };
 
-  // Lógica para calcular estatísticas de periodicidade e tempo de treino
   const trainingStats = useMemo(() => {
     if (!userId || !state.shifts.length) return { recurrence: 'Plano', totalHours: '0' };
 
@@ -162,8 +146,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-4">
       {/* Welcome & Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="lg:col-span-2 bg-gradient-to-br from-petrol-800 to-petrol-950 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[180px] md:min-h-[240px]">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 md:gap-6">
+        <div className="bg-gradient-to-br from-petrol-800 to-petrol-950 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[180px] md:min-h-[220px]">
           <div className="relative z-10">
             <h2 className="text-xl md:text-3xl font-bold mb-1">Olá, {state.currentUser?.name}! 👋</h2>
             <p className="text-petrol-200 text-xs md:text-base mb-4 md:mb-6">Pronto para a sessão de hoje?</p>
@@ -171,7 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
               {/* Card Próximo Treino */}
               <div className={`backdrop-blur-md p-3 md:p-4 rounded-2xl border transition-all flex-1 ${hasConfirmed ? 'bg-padelgreen-500/20 border-padelgreen-400/30 shadow-lg shadow-padelgreen-400/10' : 'bg-white/10 border-white/10'}`}>
                 <div className="flex justify-between items-start mb-2">
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${hasConfirmed ? 'text-padelgreen-300' : 'text-padelgreen-400'}`}>Próximo</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${hasConfirmed ? 'text-padelgreen-300' : 'text-padelgreen-400'}`}>Próximo Treino</p>
                   {hasConfirmed && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
                 </div>
                 <p className="text-sm md:text-lg font-semibold truncate mb-3">
@@ -192,7 +176,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                   </button>
                 )}
 
-                {/* Admin View: Quem vai estar presente */}
                 {userRole === Role.ADMIN && attendeesForNext.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/10">
                     <p className="text-[9px] text-petrol-300 uppercase font-bold mb-2">Confirmados ({attendeesForNext.length})</p>
@@ -206,42 +189,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                           alt="" 
                         />
                       ))}
-                      {attendeesForNext.length > 5 && (
-                        <div className="w-6 h-6 rounded-full bg-petrol-700 flex items-center justify-center text-[8px] font-bold border border-petrol-900">
-                          +{attendeesForNext.length - 5}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
-                {userRole === Role.ADMIN && nextTraining && attendeesForNext.length === 0 && (
-                  <p className="text-[9px] text-petrol-400 italic mt-2">Nenhuma confirmação ainda.</p>
-                )}
               </div>
               
-              {/* Card Periodicidade e Tempo */}
               <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">
                   {trainingStats.recurrence}
                 </p>
-                <p className="text-sm md:text-lg font-semibold">{trainingStats.totalHours}h/sem</p>
+                <p className="text-sm md:text-lg font-semibold">{trainingStats.totalHours}h por semana</p>
               </div>
             </div>
           </div>
           <div className="absolute top-[-20%] right-[-10%] opacity-20 pointer-events-none">
             <div className="w-48 h-48 md:w-64 md:h-64 bg-padelgreen-400 rounded-full blur-3xl"></div>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-2 mb-3 md:mb-4">
-            <span className="text-xl md:text-2xl">💡</span>
-            <h3 className="text-base md:text-lg font-bold text-petrol-900">Dicas do Coach AI</h3>
-          </div>
-          <div className="bg-slate-50 p-4 rounded-2xl text-xs md:text-sm leading-relaxed text-slate-600 border border-slate-100">
-            {aiTips.split('\n').filter(t => t.trim()).slice(0, 3).map((tip, i) => (
-              <p key={i} className="mb-2 last:mb-0">• {tip.replace(/^[•\d.-]+\s*/, '')}</p>
-            ))}
           </div>
         </div>
       </div>
@@ -273,13 +235,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
         <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
           <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-6">Alunos em Destaque</h3>
           <div className="space-y-3">
-            {state.users.filter(u => u.role === Role.STUDENT).slice(0, 4).map((student, i) => (
+            {state.users.filter(u => u.role === Role.STUDENT).slice(0, 5).map((student, i) => (
               <div key={student.id} className="flex items-center justify-between p-2 md:p-3 rounded-2xl hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-3">
                   <img src={student.avatar} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover" alt="" />
                   <div>
                     <p className="text-sm md:text-base font-semibold text-petrol-900 leading-tight">{student.name}</p>
-                    <p className="text-[10px] md:text-xs text-slate-500">4 sessões esta semana</p>
+                    <p className="text-[10px] md:text-xs text-slate-500">Regularidade Exemplar</p>
                   </div>
                 </div>
                 <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-padelgreen-50 flex items-center justify-center text-padelgreen-600 font-bold text-[10px] md:text-xs shrink-0">
