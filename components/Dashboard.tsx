@@ -146,7 +146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-4">
       {/* Welcome & Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-4 md:gap-6">
         <div className="bg-gradient-to-br from-petrol-800 to-petrol-950 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[180px] md:min-h-[220px]">
           <div className="relative z-10">
             <h2 className="text-xl md:text-3xl font-bold mb-1">Olá, {state.currentUser?.name}! 👋</h2>
@@ -209,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       </div>
 
       {/* Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+      <div className="grid grid-cols-1 gap-6 md:gap-8">
         <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
           <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-6">Afluência Semanal</h3>
           <div className="h-48 md:h-64 w-full">
@@ -229,26 +229,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-6">Alunos em Destaque</h3>
-          <div className="space-y-3">
-            {state.users.filter(u => u.role === Role.STUDENT).slice(0, 5).map((student, i) => (
-              <div key={student.id} className="flex items-center justify-between p-2 md:p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <img src={student.avatar} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover" alt="" />
-                  <div>
-                    <p className="text-sm md:text-base font-semibold text-petrol-900 leading-tight">{student.name}</p>
-                    <p className="text-[10px] md:text-xs text-slate-500">Regularidade Exemplar</p>
-                  </div>
-                </div>
-                <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-padelgreen-50 flex items-center justify-center text-padelgreen-600 font-bold text-[10px] md:text-xs shrink-0">
-                  #{i+1}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
