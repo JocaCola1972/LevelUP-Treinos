@@ -2,7 +2,6 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, Role, ShiftRSVP } from '../types';
 import { db } from '../services/db';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { DAYS_OF_WEEK } from '../constants';
 
 interface DashboardProps {
@@ -134,15 +133,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
   }, [state.shifts, userId, userRole]);
 
-  const chartData = [
-    { name: 'Seg', aulas: 4 },
-    { name: 'Ter', aulas: 7 },
-    { name: 'Qua', aulas: 5 },
-    { name: 'Qui', aulas: 8 },
-    { name: 'Sex', aulas: 6 },
-    { name: 'Sáb', aulas: 3 },
-  ];
-
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-4">
       {/* Welcome & Stats Cards */}
@@ -204,31 +194,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           </div>
           <div className="absolute top-[-20%] right-[-10%] opacity-20 pointer-events-none">
             <div className="w-48 h-48 md:w-64 md:h-64 bg-padelgreen-400 rounded-full blur-3xl"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Analytics */}
-      <div className="grid grid-cols-1 gap-6 md:gap-8">
-        <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-6">Afluência Semanal</h3>
-          <div className="h-48 md:h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} />
-                <YAxis hide />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                />
-                <Bar dataKey="aulas" radius={[6, 6, 0, 0]} barSize={24}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 3 ? '#8be300' : '#4a7d95'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
           </div>
         </div>
       </div>
