@@ -15,7 +15,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const userId = state.currentUser?.id;
 
   // Lógica para calcular a data da próxima ocorrência de um dia da semana
-  const getNextOccurrenceDate = (dayOfWeek: string) => {
+  const getNextOccurrenceDate = (dayOfWeek: string, offsetWeeks: number = 0) => {
     const dayMap: Record<string, number> = {
       'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
     };
@@ -24,12 +24,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     const currentDay = now.getDay();
     
     let daysToAdd = (targetDay - currentDay + 7) % 7;
+    daysToAdd += offsetWeeks * 7;
+    
     const result = new Date(now);
     result.setDate(now.getDate() + daysToAdd);
     return result.toISOString().split('T')[0];
   };
 
-  // Lógica para encontrar o próximo treino agendado
+  // Lógica para encontrar o próximo treino agendado (excluindo os já concluídos)
   const nextTraining = useMemo(() => {
     if (!userId || !state.shifts.length) return null;
 
@@ -43,38 +45,62 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
     const now = new Date();
     const currentDayIdx = (now.getDay() + 6) % 7; 
-
     const dayMap: Record<string, number> = {};
     DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
 
-    const sortedShifts = [...myShifts].sort((a, b) => {
-      const dayA = dayMap[a.dayOfWeek];
-      const dayB = dayMap[b.dayOfWeek];
+    // Calculamos a próxima ocorrência válida para cada turno
+    const occurrences = myShifts.map(shift => {
+      const dayIdx = dayMap[shift.dayOfWeek];
+      const [h, m] = shift.startTime.split(':').map(Number);
       
-      const getWeight = (dayIdx: number, time: string) => {
-        const [h, m] = time.split(':').map(Number);
-        let weight = (dayIdx * 24 * 60) + (h * 60) + m;
-        const currentWeight = (currentDayIdx * 24 * 60) + (now.getHours() * 60) + now.getMinutes();
-        if (weight <= currentWeight) {
-          weight += 7 * 24 * 60;
-        }
-        return weight;
-      };
+      // Peso da ocorrência base (esta semana)
+      let baseWeight = (dayIdx * 24 * 60) + (h * 60) + m;
+      const currentWeight = (currentDayIdx * 24 * 60) + (now.getHours() * 60) + now.getMinutes();
+      
+      // Se a hora já passou hoje ou no passado da semana, movemos para a próxima semana
+      let offsetWeeks = baseWeight <= currentWeight ? 1 : 0;
+      let dateStr = getNextOccurrenceDate(shift.dayOfWeek, offsetWeeks);
 
-      return getWeight(dayA, a.startTime) - getWeight(dayB, b.startTime);
+      // Verificamos se já existe uma sessão CONCLUÍDA para esta data
+      // Se sim, temos de saltar para a semana seguinte
+      const isAlreadyCompleted = state.sessions.some(s => 
+        s.shiftId === shift.id && 
+        s.date.startsWith(dateStr) && 
+        s.completed
+      );
+
+      if (isAlreadyCompleted) {
+        offsetWeeks += 1;
+        dateStr = getNextOccurrenceDate(shift.dayOfWeek, offsetWeeks);
+      }
+
+      // Peso final ajustado com as semanas de offset
+      const finalWeight = baseWeight + (offsetWeeks * 7 * 24 * 60);
+
+      return {
+        id: shift.id,
+        dayOfWeek: shift.dayOfWeek,
+        startTime: shift.startTime,
+        date: dateStr,
+        weight: finalWeight
+      };
     });
 
-    const next = sortedShifts[0];
-    const isToday = dayMap[next.dayOfWeek] === currentDayIdx;
-    const instanceDate = getNextOccurrenceDate(next.dayOfWeek);
-    
+    // Ordenamos por data/hora mais próxima
+    occurrences.sort((a, b) => a.weight - b.weight);
+    const next = occurrences[0];
+
+    // Verificar se é "Hoje" baseado na data calculada
+    const todayStr = now.toISOString().split('T')[0];
+    const isToday = next.date === todayStr;
+
     return {
       id: next.id,
       label: isToday ? 'Hoje' : next.dayOfWeek,
       time: next.startTime,
-      date: instanceDate
+      date: next.date
     };
-  }, [state.shifts, userId, userRole]);
+  }, [state.shifts, state.sessions, userId, userRole]);
 
   const hasConfirmed = useMemo(() => {
     if (!nextTraining || !userId) return false;
@@ -149,7 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                   {hasConfirmed && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
                 </div>
                 <p className="text-sm md:text-lg font-semibold truncate mb-3">
-                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda'}
+                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda pendente'}
                 </p>
                 
                 {nextTraining && userRole !== Role.ADMIN && (
@@ -166,7 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                   </button>
                 )}
 
-                {userRole === Role.ADMIN && attendeesForNext.length > 0 && (
+                {userRole === Role.ADMIN && nextTraining && attendeesForNext.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/10">
                     <p className="text-[9px] text-petrol-300 uppercase font-bold mb-2">Confirmados ({attendeesForNext.length})</p>
                     <div className="flex -space-x-2 overflow-hidden">
