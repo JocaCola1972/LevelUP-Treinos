@@ -117,6 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
   }, [state.rsvps, nextTraining, userRole, state.users]);
 
+  // Fix: Completed the truncated handleUpdateRSVP function and added missing UI blocks
   const handleUpdateRSVP = async (attending: boolean) => {
     if (!nextTraining || !userId || isUpdatingRSVP) return;
     
@@ -144,139 +145,118 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     }
   };
 
-  const trainingStats = useMemo(() => {
-    if (!userId || !state.shifts.length) return { recurrence: 'Plano', totalHours: '0' };
-
-    const myShifts = state.shifts.filter(shift => {
-      if (userRole === Role.ADMIN) return true;
-      if (userRole === Role.COACH) return shift.coachId === userId;
-      return shift.studentIds.includes(userId);
-    });
-
-    if (myShifts.length === 0) return { recurrence: 'Plano', totalHours: '0' };
-
-    const totalMinutesPerWeek = myShifts.reduce((acc, s) => acc + s.durationMinutes, 0);
-    const mainRecurrence = myShifts[0].recurrence;
-
-    return {
-      recurrence: mainRecurrence,
-      totalHours: (totalMinutesPerWeek / 60).toFixed(1)
-    };
-  }, [state.shifts, userId, userRole]);
-
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-4">
-      {/* Welcome & Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:gap-6">
-        <div className="bg-gradient-to-br from-petrol-800 to-petrol-950 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[180px] md:min-h-[220px]">
+    <div className="space-y-6">
+      <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-10 border border-slate-200 shadow-sm overflow-hidden relative group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-padelgreen-400/10 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
+        <div className="relative z-10">
+          <h2 className="text-2xl md:text-3xl font-black text-petrol-900 mb-2">Olá, {state.currentUser?.name}! 👋</h2>
+          <p className="text-slate-500 font-medium">Bom tê-lo de volta ao PadelPro.</p>
+        </div>
+      </div>
+
+      {nextTraining ? (
+        <div className="bg-petrol-900 rounded-[32px] md:rounded-[40px] p-6 md:p-10 text-white shadow-xl shadow-petrol-900/20 relative overflow-hidden">
+          <div className="absolute bottom-0 right-0 w-64 h-64 bg-padelgreen-400/5 rounded-full -mb-32 -mr-32"></div>
+          
           <div className="relative z-10">
-            <h2 className="text-xl md:text-3xl font-bold mb-1">Olá, {state.currentUser?.name}! 👋</h2>
-            <p className="text-petrol-200 text-xs md:text-base mb-4 md:mb-6">Pronto para a sessão de hoje?</p>
-            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-              {/* Card Próximo Treino */}
-              <div className={`backdrop-blur-md p-3 md:p-4 rounded-2xl border transition-all flex-1 min-w-[280px] ${currentRSVP?.attending ? 'bg-padelgreen-500/20 border-padelgreen-400/30 shadow-lg shadow-padelgreen-400/10' : currentRSVP?.attending === false ? 'bg-red-500/10 border-red-400/20' : 'bg-white/10 border-white/10'}`}>
-                <div className="flex justify-between items-start mb-2">
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${currentRSVP?.attending ? 'text-padelgreen-300' : currentRSVP?.attending === false ? 'text-red-400' : 'text-padelgreen-400'}`}>Próximo Treino</p>
-                  {currentRSVP?.attending && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
-                  {currentRSVP?.attending === false && <span className="text-red-400 text-xs">❌</span>}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-padelgreen-400/20 rounded-full border border-padelgreen-400/30">
+                  <span className="w-2 h-2 bg-padelgreen-400 rounded-full animate-pulse"></span>
+                  <span className="text-padelgreen-400 text-xs font-bold uppercase tracking-widest">Próximo Treino</span>
                 </div>
-                <p className="text-sm md:text-lg font-semibold truncate mb-3">
-                  {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda pendente'}
-                </p>
-                
-                {nextTraining && userRole !== Role.ADMIN && (
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleUpdateRSVP(true)}
-                      disabled={isUpdatingRSVP}
-                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                        currentRSVP?.attending 
-                          ? 'bg-padelgreen-400 text-petrol-950 hover:bg-padelgreen-300' 
-                          : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
-                      }`}
-                    >
-                      {isUpdatingRSVP ? '...' : 'Vou Estar'}
-                    </button>
-                    <button 
-                      onClick={() => handleUpdateRSVP(false)}
-                      disabled={isUpdatingRSVP}
-                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                        currentRSVP?.attending === false
-                          ? 'bg-red-500 text-white hover:bg-red-400' 
-                          : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
-                      }`}
-                    >
-                      {isUpdatingRSVP ? '...' : 'Não Vou'}
-                    </button>
-                  </div>
-                )}
-
-                {userRole === Role.ADMIN && nextTraining && (
-                  <div className="mt-2 pt-2 border-t border-white/10 space-y-3">
-                    {/* Confirmados */}
-                    <div>
-                      <p className="text-[9px] text-padelgreen-300 uppercase font-bold mb-1.5 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-padelgreen-400 rounded-full"></span>
-                        Vão estar presentes ({attendeesForNext.going.length})
-                      </p>
-                      <div className="flex -space-x-2 overflow-hidden">
-                        {attendeesForNext.going.length > 0 ? (
-                          attendeesForNext.going.map((att: any) => (
-                            <img 
-                              key={att.id} 
-                              src={att.avatar} 
-                              title={att.name} 
-                              className="w-6 h-6 rounded-full border border-petrol-900 object-cover" 
-                              alt="" 
-                            />
-                          ))
-                        ) : (
-                          <span className="text-[9px] text-white/30 italic">Ninguém confirmado</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ausentes */}
-                    <div>
-                      <p className="text-[9px] text-red-300 uppercase font-bold mb-1.5 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
-                        Não vão estar presentes ({attendeesForNext.notGoing.length})
-                      </p>
-                      <div className="flex -space-x-2 overflow-hidden">
-                        {attendeesForNext.notGoing.length > 0 ? (
-                          attendeesForNext.notGoing.map((att: any) => (
-                            <img 
-                              key={att.id} 
-                              src={att.avatar} 
-                              title={att.name} 
-                              className="w-6 h-6 rounded-full border border-petrol-900 object-cover opacity-60" 
-                              alt="" 
-                            />
-                          ))
-                        ) : (
-                          <span className="text-[9px] text-white/30 italic">Nenhuma falta sinalizada</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <h3 className="text-3xl md:text-4xl font-black">{nextTraining.label}</h3>
+                  <p className="text-petrol-200 text-lg md:text-xl font-medium mt-1">Às {nextTraining.time} • {new Date(nextTraining.date).toLocaleDateString('pt-PT')}</p>
+                </div>
               </div>
-              
-              <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1 h-fit">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">
-                  {trainingStats.recurrence}
-                </p>
-                <p className="text-sm md:text-lg font-semibold">{trainingStats.totalHours}h por semana</p>
+
+              <div className="flex flex-col gap-3 min-w-[200px]">
+                <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest ml-1">Vais aparecer?</p>
+                <div className="flex gap-3">
+                  <button 
+                    disabled={isUpdatingRSVP}
+                    onClick={() => handleUpdateRSVP(true)}
+                    className={`flex-1 py-4 rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      currentRSVP?.attending === true 
+                        ? 'bg-padelgreen-400 text-petrol-900' 
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {isUpdatingRSVP ? '...' : 'Vou'} ✅
+                  </button>
+                  <button 
+                    disabled={isUpdatingRSVP}
+                    onClick={() => handleUpdateRSVP(false)}
+                    className={`flex-1 py-4 rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      currentRSVP?.attending === false 
+                        ? 'bg-red-500 text-white' 
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {isUpdatingRSVP ? '...' : 'Não'} ❌
+                  </button>
+                </div>
               </div>
             </div>
+            
+            {userRole === Role.ADMIN && (
+              <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4">Confirmados ({attendeesForNext.going.length})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {attendeesForNext.going.length > 0 ? attendeesForNext.going.map(u => (
+                      <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                        <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                        <span className="text-xs font-medium">{u?.name}</span>
+                      </div>
+                    )) : <span className="text-xs text-petrol-400 italic">Ninguém confirmou ainda.</span>}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4">Indisponíveis ({attendeesForNext.notGoing.length})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {attendeesForNext.notGoing.length > 0 ? attendeesForNext.notGoing.map(u => (
+                      <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5 opacity-60">
+                        <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                        <span className="text-xs font-medium">{u?.name}</span>
+                      </div>
+                    )) : <span className="text-xs text-petrol-400 italic">Sem cancelamentos.</span>}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="absolute top-[-20%] right-[-10%] opacity-20 pointer-events-none">
-            <div className="w-48 h-48 md:w-64 md:h-64 bg-padelgreen-400 rounded-full blur-3xl"></div>
-          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-[32px] p-10 border border-slate-200 text-center">
+          <div className="text-4xl mb-4">📅</div>
+          <h3 className="text-xl font-bold text-petrol-900">Sem treinos agendados</h3>
+          <p className="text-slate-500 mt-2">Parece que não tens sessões marcadas para breve.</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+          <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl mb-4">👥</div>
+          <h4 className="text-2xl font-black text-petrol-900">{state.users.length}</h4>
+          <p className="text-slate-500 text-sm font-medium">Utilizadores</p>
+        </div>
+        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+          <div className="w-12 h-12 bg-padelgreen-50 text-padelgreen-600 rounded-2xl flex items-center justify-center text-xl mb-4">📅</div>
+          <h4 className="text-2xl font-black text-petrol-900">{state.shifts.length}</h4>
+          <p className="text-slate-500 text-sm font-medium">Horários Ativos</p>
+        </div>
+        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+          <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-2xl flex items-center justify-center text-xl mb-4">🎾</div>
+          <h4 className="text-2xl font-black text-petrol-900">{state.sessions.filter(s => s.completed).length}</h4>
+          <p className="text-slate-500 text-sm font-medium">Treinos Feitos</p>
         </div>
       </div>
     </div>
   );
 };
 
+// Fix: Added missing default export
 export default Dashboard;

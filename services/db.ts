@@ -86,7 +86,12 @@ export const db = {
     },
     deleteByUserAndDate: async (userId: string, shiftId: string, date: string) => {
       ensureConfig();
-      const { error } = await supabase.from('rsvps').delete().match({ userId, shiftId, date });
+      // Em tabelas criadas com colunas quoted (como "userId"), o Supabase JS espera chaves que batam exatamente.
+      const { error } = await supabase.from('rsvps').delete().match({ 
+        userId, 
+        shiftId, 
+        date 
+      });
       if (error) throw error;
     }
   }
