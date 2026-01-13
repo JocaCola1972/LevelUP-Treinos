@@ -102,32 +102,37 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     };
   }, [state.shifts, state.sessions, userId, userRole]);
 
-  const hasConfirmed = useMemo(() => {
-    if (!nextTraining || !userId) return false;
-    return state.rsvps.some(r => r.shiftId === nextTraining.id && r.userId === userId && r.date === nextTraining.date);
+  const currentRSVP = useMemo(() => {
+    if (!nextTraining || !userId) return null;
+    return state.rsvps.find(r => r.shiftId === nextTraining.id && r.userId === userId && r.date === nextTraining.date);
   }, [state.rsvps, nextTraining, userId]);
 
   const attendeesForNext = useMemo(() => {
-    if (!nextTraining || userRole !== Role.ADMIN) return [];
-    return state.rsvps
-      .filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date)
-      .map(r => state.users.find(u => u.id === r.userId))
-      .filter(Boolean);
+    if (!nextTraining || userRole !== Role.ADMIN) return { going: [], notGoing: [] };
+    const rsvps = state.rsvps.filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date);
+    
+    return {
+      going: rsvps.filter(r => r.attending).map(r => state.users.find(u => u.id === r.userId)).filter(Boolean),
+      notGoing: rsvps.filter(r => !r.attending).map(r => state.users.find(u => u.id === r.userId)).filter(Boolean)
+    };
   }, [state.rsvps, nextTraining, userRole, state.users]);
 
-  const handleToggleRSVP = async () => {
+  const handleUpdateRSVP = async (attending: boolean) => {
     if (!nextTraining || !userId || isUpdatingRSVP) return;
     
     setIsUpdatingRSVP(true);
     try {
-      if (hasConfirmed) {
+      // Se já temos um RSVP com o mesmo estado, removemos (toggle off)
+      if (currentRSVP && currentRSVP.attending === attending) {
         await db.rsvps.deleteByUserAndDate(userId, nextTraining.id, nextTraining.date);
       } else {
+        // Caso contrário, guardamos o novo estado
         const newRSVP: ShiftRSVP = {
           id: `${userId}-${nextTraining.id}-${nextTraining.date}`,
           shiftId: nextTraining.id,
           userId: userId,
-          date: nextTraining.date
+          date: nextTraining.date,
+          attending
         };
         await db.rsvps.save(newRSVP);
       }
@@ -169,48 +174,95 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
             <p className="text-petrol-200 text-xs md:text-base mb-4 md:mb-6">Pronto para a sessão de hoje?</p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               {/* Card Próximo Treino */}
-              <div className={`backdrop-blur-md p-3 md:p-4 rounded-2xl border transition-all flex-1 ${hasConfirmed ? 'bg-padelgreen-500/20 border-padelgreen-400/30 shadow-lg shadow-padelgreen-400/10' : 'bg-white/10 border-white/10'}`}>
+              <div className={`backdrop-blur-md p-3 md:p-4 rounded-2xl border transition-all flex-1 min-w-[280px] ${currentRSVP?.attending ? 'bg-padelgreen-500/20 border-padelgreen-400/30 shadow-lg shadow-padelgreen-400/10' : currentRSVP?.attending === false ? 'bg-red-500/10 border-red-400/20' : 'bg-white/10 border-white/10'}`}>
                 <div className="flex justify-between items-start mb-2">
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${hasConfirmed ? 'text-padelgreen-300' : 'text-padelgreen-400'}`}>Próximo Treino</p>
-                  {hasConfirmed && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${currentRSVP?.attending ? 'text-padelgreen-300' : currentRSVP?.attending === false ? 'text-red-400' : 'text-padelgreen-400'}`}>Próximo Treino</p>
+                  {currentRSVP?.attending && <span className="text-padelgreen-400 text-xs animate-bounce">✅</span>}
+                  {currentRSVP?.attending === false && <span className="text-red-400 text-xs">❌</span>}
                 </div>
                 <p className="text-sm md:text-lg font-semibold truncate mb-3">
                   {nextTraining ? `${nextTraining.label}, ${nextTraining.time}h` : 'Sem agenda pendente'}
                 </p>
                 
                 {nextTraining && userRole !== Role.ADMIN && (
-                  <button 
-                    onClick={handleToggleRSVP}
-                    disabled={isUpdatingRSVP}
-                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                      hasConfirmed 
-                        ? 'bg-padelgreen-400 text-petrol-950 hover:bg-padelgreen-300' 
-                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
-                    }`}
-                  >
-                    {isUpdatingRSVP ? '...' : hasConfirmed ? 'Vou Estar Presente' : 'Confirmar Presença'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleUpdateRSVP(true)}
+                      disabled={isUpdatingRSVP}
+                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                        currentRSVP?.attending 
+                          ? 'bg-padelgreen-400 text-petrol-950 hover:bg-padelgreen-300' 
+                          : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                      }`}
+                    >
+                      {isUpdatingRSVP ? '...' : 'Vou Estar'}
+                    </button>
+                    <button 
+                      onClick={() => handleUpdateRSVP(false)}
+                      disabled={isUpdatingRSVP}
+                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                        currentRSVP?.attending === false
+                          ? 'bg-red-500 text-white hover:bg-red-400' 
+                          : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                      }`}
+                    >
+                      {isUpdatingRSVP ? '...' : 'Não Vou'}
+                    </button>
+                  </div>
                 )}
 
-                {userRole === Role.ADMIN && nextTraining && attendeesForNext.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/10">
-                    <p className="text-[9px] text-petrol-300 uppercase font-bold mb-2">Confirmados ({attendeesForNext.length})</p>
-                    <div className="flex -space-x-2 overflow-hidden">
-                      {attendeesForNext.slice(0, 5).map((att: any) => (
-                        <img 
-                          key={att.id} 
-                          src={att.avatar} 
-                          title={att.name} 
-                          className="w-6 h-6 rounded-full border border-petrol-900 object-cover" 
-                          alt="" 
-                        />
-                      ))}
+                {userRole === Role.ADMIN && nextTraining && (
+                  <div className="mt-2 pt-2 border-t border-white/10 space-y-3">
+                    {/* Confirmados */}
+                    <div>
+                      <p className="text-[9px] text-padelgreen-300 uppercase font-bold mb-1.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-padelgreen-400 rounded-full"></span>
+                        Vão estar presentes ({attendeesForNext.going.length})
+                      </p>
+                      <div className="flex -space-x-2 overflow-hidden">
+                        {attendeesForNext.going.length > 0 ? (
+                          attendeesForNext.going.map((att: any) => (
+                            <img 
+                              key={att.id} 
+                              src={att.avatar} 
+                              title={att.name} 
+                              className="w-6 h-6 rounded-full border border-petrol-900 object-cover" 
+                              alt="" 
+                            />
+                          ))
+                        ) : (
+                          <span className="text-[9px] text-white/30 italic">Ninguém confirmado</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ausentes */}
+                    <div>
+                      <p className="text-[9px] text-red-300 uppercase font-bold mb-1.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                        Não vão estar presentes ({attendeesForNext.notGoing.length})
+                      </p>
+                      <div className="flex -space-x-2 overflow-hidden">
+                        {attendeesForNext.notGoing.length > 0 ? (
+                          attendeesForNext.notGoing.map((att: any) => (
+                            <img 
+                              key={att.id} 
+                              src={att.avatar} 
+                              title={att.name} 
+                              className="w-6 h-6 rounded-full border border-petrol-900 object-cover opacity-60" 
+                              alt="" 
+                            />
+                          ))
+                        ) : (
+                          <span className="text-[9px] text-white/30 italic">Nenhuma falta sinalizada</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
               
-              <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1">
+              <div className="bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-white/10 flex-1 h-fit">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-padelgreen-400 mb-0.5">
                   {trainingStats.recurrence}
                 </p>

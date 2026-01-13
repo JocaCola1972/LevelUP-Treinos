@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS rsvps (
   "shiftId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   date TEXT NOT NULL,
+  attending BOOLEAN DEFAULT true,
   UNIQUE("userId", "shiftId", date)
 );
 
@@ -167,6 +168,10 @@ DO $$
 BEGIN 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND column_name='hiddenForUserIds') THEN
         ALTER TABLE sessions ADD COLUMN "hiddenForUserIds" TEXT[] DEFAULT '{}';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rsvps' AND column_name='attending') THEN
+        ALTER TABLE rsvps ADD COLUMN "attending" BOOLEAN DEFAULT true;
     END IF;
 END $$;
 

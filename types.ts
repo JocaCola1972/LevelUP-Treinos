@@ -50,6 +50,7 @@ export interface ShiftRSVP {
   shiftId: string;
   userId: string;
   date: string; // YYYY-MM-DD
+  attending: boolean;
 }
 
 export interface AppState {
