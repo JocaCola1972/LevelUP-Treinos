@@ -14,9 +14,9 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onNavigate }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
-    { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Treinos', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
 
   const visibleMenuItems = menuItems.filter(item => item.roles.includes(user.role));

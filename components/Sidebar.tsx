@@ -12,9 +12,9 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
-    { id: 'users', label: 'Utilizadores', icon: '👥', roles: [Role.ADMIN] },
     { id: 'shifts', label: 'Horários', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Sessões', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'users', label: 'Utilizadores', icon: '👥', roles: [Role.ADMIN] },
   ];
 
   return (
