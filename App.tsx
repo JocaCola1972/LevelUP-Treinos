@@ -55,9 +55,7 @@ const App: React.FC = () => {
         if (typeof err === 'string') {
           msg = err;
         } else if (typeof err === 'object') {
-          // Extrair informações de erros específicos do Supabase/PostgREST ou Error nativo
           const parts = [];
-          
           if (err.message) parts.push(err.message);
           if (err.details) parts.push(`Detalhes: ${err.details}`);
           if (err.hint) parts.push(`Sugestão: ${err.hint}`);
@@ -77,9 +75,8 @@ const App: React.FC = () => {
       }
       
       const lowerMsg = msg.toLowerCase();
-      // Se for um erro de falta de tabelas ou colunas, mostrar a mensagem amigável com o SQL
       if (lowerMsg.includes('relation') || lowerMsg.includes('42p01') || lowerMsg.includes('column') || lowerMsg.includes('not found') || lowerMsg.includes('does not exist')) {
-        setInitError("Estrutura da base de dados desatualizada ou tabelas em falta. É necessário executar o SQL de atualização no Dashboard do Supabase.");
+        setInitError("Estrutura da base de dados desatualizada. É necessário executar o SQL de reparação no Supabase.");
       } else {
         setInitError(msg);
       }
@@ -113,13 +110,21 @@ const App: React.FC = () => {
           <div className="w-16 h-16 md:w-20 md:h-20 bg-red-100 rounded-3xl flex items-center justify-center text-red-600 text-3xl md:text-4xl mb-6 mx-auto">
             ❌
           </div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Erro na Base de Dados</h2>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Reparação Necessária</h2>
           <p className="text-red-500 font-medium mb-6 text-xs md:text-sm break-words px-2">{initError}</p>
           
           <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 text-left text-xs md:text-sm mb-6">
-            <p className="font-bold text-slate-700 mb-4">Para corrigir, copia e executa este SQL no "SQL Editor" do teu Dashboard do Supabase:</p>
+            <p className="font-bold text-slate-700 mb-4">Copia e executa este SQL no "SQL Editor" do Supabase para corrigir a tabela de presenças:</p>
             <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[9px] md:text-[10px] overflow-x-auto leading-relaxed font-mono select-all whitespace-pre-wrap">
-{`-- 1. Criar tabelas se não existirem
+{`-- FIX: Adicionar coluna 'attending' se não existir
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rsvps' AND column_name='attending') THEN
+        ALTER TABLE rsvps ADD COLUMN "attending" BOOLEAN DEFAULT true;
+    END IF;
+END $$;
+
+-- Garantir tabelas base
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -159,26 +164,9 @@ CREATE TABLE IF NOT EXISTS rsvps (
   "shiftId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   date TEXT NOT NULL,
-  attending BOOLEAN DEFAULT true,
+  "attending" BOOLEAN DEFAULT true,
   UNIQUE("userId", "shiftId", date)
-);
-
--- 2. Garantir que as colunas novas existem em tabelas já criadas
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND column_name='hiddenForUserIds') THEN
-        ALTER TABLE sessions ADD COLUMN "hiddenForUserIds" TEXT[] DEFAULT '{}';
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rsvps' AND column_name='attending') THEN
-        ALTER TABLE rsvps ADD COLUMN "attending" BOOLEAN DEFAULT true;
-    END IF;
-END $$;
-
--- 3. Inserir admin inicial
-INSERT INTO users (id, name, role, avatar, phone, password, active)
-VALUES ('admin-1', 'Admin Especial', 'ADMIN', 'https://picsum.photos/seed/admin917/200', '917772010', '123', true)
-ON CONFLICT (phone) DO NOTHING;`}
+);`}
             </pre>
           </div>
           
@@ -186,7 +174,7 @@ ON CONFLICT (phone) DO NOTHING;`}
             onClick={refreshData}
             className="w-full py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg flex items-center justify-center gap-2"
           >
-            🔄 Tentar Novamente
+            🔄 Já executei o SQL, tentar novamente
           </button>
         </div>
       </div>

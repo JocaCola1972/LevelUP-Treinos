@@ -111,11 +111,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     
     setIsUpdatingRSVP(true);
     try {
-      // Se já temos um RSVP e clicamos na mesma opção, removemos (toggle) usando o ID direto
       if (currentRSVP && currentRSVP.attending === attending) {
         await db.rsvps.delete(currentRSVP.id);
       } else {
-        // Caso contrário, criamos/atualizamos o RSVP
         const newRSVP: ShiftRSVP = {
           id: `${userId}-${nextTraining.id}-${nextTraining.date}`,
           shiftId: nextTraining.id,
@@ -128,9 +126,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       refresh();
     } catch (err: any) {
       console.error("Erro ao atualizar RSVP:", err);
-      // Extrair mensagem de erro amigável se disponível
       const errorMsg = err?.message || err?.details || JSON.stringify(err);
-      alert(`Não foi possível atualizar a sua presença: ${errorMsg}`);
+      
+      if (errorMsg.includes('attending') || errorMsg.includes('column')) {
+        alert("ERRO DE TABELA: A sua base de dados não tem a coluna 'attending'. Por favor, execute o script SQL de reparação no Dashboard do Supabase.");
+      } else {
+        alert(`Erro ao atualizar presença: ${errorMsg}`);
+      }
     } finally {
       setIsUpdatingRSVP(false);
     }
