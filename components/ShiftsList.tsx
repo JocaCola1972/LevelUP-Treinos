@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { AppState, Shift, RecurrenceType, Role } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppState, Shift, RecurrenceType, Role, User } from '../types';
 import { db } from '../services/db';
 import { DAYS_OF_WEEK } from '../constants';
 
@@ -15,6 +15,8 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   
   const [selectedDay, setSelectedDay] = useState<string>(DAYS_OF_WEEK[0]);
   const [selectedDate, setSelectedDate] = useState<string>('');
+
+  const isStaff = state.currentUser?.role === Role.ADMIN || state.currentUser?.role === Role.COACH;
 
   useEffect(() => {
     if (isModalOpen) {
@@ -31,37 +33,17 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const coaches = state.users.filter(u => u.role === Role.COACH);
   const students = state.users.filter(u => u.role === Role.STUDENT);
 
-  const getDayFromDate = (dateVal: string) => {
-    if (!dateVal) return null;
-    const [year, month, day] = dateVal.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    const dayIndex = date.getDay(); // 0 (Dom) a 6 (Sáb)
-    const mappedIndex = (dayIndex + 6) % 7; // Ajusta para Seg=0 ... Dom=6
-    return DAYS_OF_WEEK[mappedIndex];
-  };
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateVal = e.target.value;
-    setSelectedDate(dateVal);
-
-    const calculatedDay = getDayFromDate(dateVal);
-    if (calculatedDay) {
-      setSelectedDay(calculatedDay);
-    }
-  };
-
-  const handleDayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newDay = e.target.value;
-    setSelectedDay(newDay);
-
-    // Se houver uma data selecionada, verificar se ela ainda corresponde ao novo dia da semana
-    if (selectedDate) {
-      const dayOfSelectedDate = getDayFromDate(selectedDate);
-      if (dayOfSelectedDate !== newDay) {
-        // Se o dia não coincidir, limpamos a data para manter a integridade
-        setSelectedDate('');
-      }
-    }
+  const getNextOccurrenceDate = (dayOfWeek: string) => {
+    const dayMap: Record<string, number> = {
+      'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
+    };
+    const targetDay = dayMap[dayOfWeek];
+    const now = new Date();
+    const currentDay = now.getDay();
+    let daysToAdd = (targetDay - currentDay + 7) % 7;
+    const result = new Date(now);
+    result.setDate(now.getDate() + daysToAdd);
+    return result.toISOString().split('T')[0];
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -82,14 +64,24 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     setIsModalOpen(false);
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return null;
-    try {
-      const [year, month, day] = dateStr.split('-').map(Number);
-      return new Date(year, month - 1, day).toLocaleDateString('pt-PT');
-    } catch {
-      return dateStr;
-    }
+  // Fix: Added key?: React.Key to props type to resolve TS error when calling the component in JSX with a key.
+  const StudentRSVPBadge = ({ student, shiftId }: { student: User, shiftId: string, key?: React.Key }) => {
+    const nextDate = getNextOccurrenceDate(state.shifts.find(s => s.id === shiftId)?.dayOfWeek || 'Segunda');
+    const rsvp = state.rsvps.find(r => r.shiftId === shiftId && r.userId === student.id && r.date === nextDate);
+
+    if (!rsvp) return (
+      <div className="relative group/avatar">
+        <img src={student.avatar} className="w-8 h-8 rounded-full border-2 border-white grayscale opacity-50" alt={student.name} title={`${student.name}: Sem resposta`} />
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-slate-400 rounded-full border-2 border-white"></div>
+      </div>
+    );
+
+    return (
+      <div className="relative group/avatar">
+        <img src={student.avatar} className={`w-8 h-8 rounded-full border-2 ${rsvp.attending ? 'border-padelgreen-400 ring-2 ring-padelgreen-100' : 'border-red-400 grayscale opacity-70'}`} alt={student.name} title={`${student.name}: ${rsvp.attending ? 'Confirmado' : 'Não vai'}`} />
+        <div className={`absolute -top-1 -right-1 w-3 h-3 ${rsvp.attending ? 'bg-padelgreen-500' : 'bg-red-500'} rounded-full border-2 border-white`}></div>
+      </div>
+    );
   };
 
   return (
@@ -97,7 +89,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-petrol-900">Agenda de Treinos</h2>
-          <p className="text-slate-500 text-xs md:text-sm">Horários fixos e alunos inscritos.</p>
+          <p className="text-slate-500 text-xs md:text-sm">Consulte as presenças para a próxima sessão.</p>
         </div>
         {state.currentUser?.role === Role.ADMIN && (
           <button 
@@ -109,121 +101,51 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
         )}
       </div>
 
-      <div className="hidden md:block bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Data / Dia</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Hora</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Treinador</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Alunos</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Recorrência</th>
-              <th className="px-6 py-4"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {state.shifts.map(shift => {
-              const coach = state.users.find(u => u.id === shift.coachId);
-              const formattedDate = formatDate(shift.startDate);
-              return (
-                <tr key={shift.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-petrol-900">{shift.dayOfWeek}</span>
-                      {formattedDate && <span className="text-[10px] text-slate-400 font-medium">{formattedDate}</span>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-petrol-50 text-petrol-700 px-3 py-1 rounded-lg text-sm font-semibold">
-                      {shift.startTime} ({shift.durationMinutes}m)
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <img src={coach?.avatar} className="w-6 h-6 rounded-full" alt="" />
-                      <span className="text-sm font-medium">{coach?.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex -space-x-2">
-                      {shift.studentIds.slice(0, 3).map(id => {
-                        const student = state.users.find(u => u.id === id);
-                        return <img key={id} src={student?.avatar} className="w-7 h-7 rounded-full border-2 border-white" alt="" title={student?.name} />;
-                      })}
-                      {shift.studentIds.length > 3 && (
-                        <div className="w-7 h-7 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">
-                          +{shift.studentIds.length - 3}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600">
-                      {shift.recurrence}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => { setEditingShift(shift); setIsModalOpen(true); }}
-                      className="text-slate-400 hover:text-petrol-900 font-bold text-sm px-2"
-                    >
-                      Editar
-                    </button>
-                    <button 
-                      onClick={async () => { if(confirm('Remover?')) { await db.shifts.delete(shift.id); refresh(); }}}
-                      className="text-red-300 hover:text-red-500 font-bold text-sm px-2"
-                    >
-                      X
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="md:hidden space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {state.shifts.map(shift => {
           const coach = state.users.find(u => u.id === shift.coachId);
-          const formattedDate = formatDate(shift.startDate);
+          const nextDate = getNextOccurrenceDate(shift.dayOfWeek);
+          const shiftStudents = state.users.filter(u => shift.studentIds.includes(u.id));
+          
           return (
-            <div key={shift.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 px-3 py-1 bg-slate-100 text-[10px] font-bold text-slate-500 rounded-bl-xl uppercase">
-                {shift.recurrence}
-              </div>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-petrol-900 leading-tight">
-                    {shift.dayOfWeek}
-                    {formattedDate && <span className="block text-[10px] text-slate-400 font-medium">{formattedDate}</span>}
-                  </h3>
-                  <p className="text-padelgreen-600 font-bold text-sm">{shift.startTime} <span className="text-slate-400 font-medium">({shift.durationMinutes}m)</span></p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 mb-4 bg-slate-50 p-2 rounded-2xl">
-                <img src={coach?.avatar} className="w-8 h-8 rounded-full" alt="" />
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-bold leading-none">Treinador</p>
-                  <p className="text-sm font-bold text-petrol-900">{coach?.name}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-                <div className="flex -space-x-2">
-                  {shift.studentIds.slice(0, 4).map(id => (
-                    <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-8 h-8 rounded-full border-2 border-white" alt="" />
-                  ))}
-                  {shift.studentIds.length > 4 && (
-                    <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">
-                      +{shift.studentIds.length - 4}
+            <div key={shift.id} className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+              <div className="p-6 md:p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-black uppercase tracking-widest text-padelgreen-600 bg-padelgreen-50 px-2 py-0.5 rounded">
+                        {shift.recurrence}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">• Próximo: {new Date(nextDate).toLocaleDateString('pt-PT')}</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-petrol-900">{shift.dayOfWeek} às {shift.startTime}</h3>
+                    <p className="text-slate-500 text-sm font-medium">Duração: {shift.durationMinutes} minutos</p>
+                  </div>
+                  {state.currentUser?.role === Role.ADMIN && (
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditingShift(shift); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-petrol-900 transition-colors">✏️</button>
+                      <button onClick={async () => { if(confirm('Remover?')) { await db.shifts.delete(shift.id); refresh(); }}} className="p-2 text-red-300 hover:text-red-500 transition-colors">🗑️</button>
                     </div>
                   )}
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={() => { setEditingShift(shift); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-petrol-900">✏️</button>
-                  <button onClick={async () => { if(confirm('Remover?')) { await db.shifts.delete(shift.id); refresh(); }}} className="p-2 text-red-300 hover:text-red-500">🗑️</button>
+
+                <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <img src={coach?.avatar} className="w-10 h-10 rounded-full ring-2 ring-white" alt="" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-black leading-none mb-1">Treinador</p>
+                      <p className="text-sm font-bold text-petrol-900">{coach?.name}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-400 uppercase font-black leading-none mb-2 md:text-right">Estado das Presenças</p>
+                    <div className="flex -space-x-2 md:justify-end">
+                      {shiftStudents.map(student => (
+                        <StudentRSVPBadge key={student.id} student={student} shiftId={shift.id} />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -239,24 +161,22 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
             <form onSubmit={handleSave} className="space-y-4 pb-8 sm:pb-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Data de Início / Única</label>
-                  <input 
-                    type="date" 
-                    name="startDate" 
-                    value={selectedDate}
-                    onChange={handleDateChange}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" 
-                  />
-                </div>
-                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
                   <select 
                     name="dayOfWeek" 
                     value={selectedDay}
-                    onChange={handleDayChange}
+                    onChange={(e) => setSelectedDay(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all"
                   >
                     {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Recorrência</label>
+                  <select name="recurrence" defaultValue={editingShift?.recurrence || RecurrenceType.SEMANAL} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
+                    <option value={RecurrenceType.SEMANAL}>Semanal</option>
+                    <option value={RecurrenceType.QUINZENAL}>Quinzenal</option>
+                    <option value={RecurrenceType.PONTUAL}>Pontual</option>
                   </select>
                 </div>
               </div>
@@ -271,21 +191,13 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Recorrência</label>
-                <select name="recurrence" defaultValue={editingShift?.recurrence || RecurrenceType.SEMANAL} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
-                  <option value={RecurrenceType.SEMANAL}>Semanal</option>
-                  <option value={RecurrenceType.QUINZENAL}>Quinzenal</option>
-                  <option value={RecurrenceType.PONTUAL}>Pontual</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Treinador</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Treinador Responsável</label>
                 <select name="coachId" defaultValue={editingShift?.coachId} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
                   {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Alunos (Seleção múltipla)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Alunos Inscritos</label>
                 <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
                   {students.map(s => (
                     <label key={s.id} className="flex items-center gap-2 text-sm p-2 hover:bg-white rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
@@ -303,7 +215,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Guardar</button>
+                <button type="submit" className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Guardar Alterações</button>
               </div>
             </form>
           </div>

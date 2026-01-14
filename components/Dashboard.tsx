@@ -97,23 +97,23 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   }, [state.rsvps, nextTraining, userId]);
 
   const attendeesForNext = useMemo(() => {
-    if (!nextTraining || userRole !== Role.ADMIN) return { going: [], notGoing: [] };
+    if (!nextTraining) return { going: [], notGoing: [] };
     const rsvps = state.rsvps.filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date);
     
     return {
       going: rsvps.filter(r => r.attending).map(r => state.users.find(u => u.id === r.userId)).filter(Boolean),
       notGoing: rsvps.filter(r => !r.attending).map(r => state.users.find(u => u.id === r.userId)).filter(Boolean)
     };
-  }, [state.rsvps, nextTraining, userRole, state.users]);
+  }, [state.rsvps, nextTraining, state.users]);
 
   const handleUpdateRSVP = async (attending: boolean) => {
     if (!nextTraining || !userId || isUpdatingRSVP) return;
     
     setIsUpdatingRSVP(true);
     try {
-      // Se já temos um RSVP e clicamos na mesma opção, removemos (toggle)
+      // Se já temos um RSVP e clicamos na mesma opção, removemos (toggle) usando o ID direto
       if (currentRSVP && currentRSVP.attending === attending) {
-        await db.rsvps.deleteByUserAndDate(userId, nextTraining.id, nextTraining.date);
+        await db.rsvps.delete(currentRSVP.id);
       } else {
         // Caso contrário, criamos/atualizamos o RSVP
         const newRSVP: ShiftRSVP = {
@@ -126,9 +126,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
         await db.rsvps.save(newRSVP);
       }
       refresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao atualizar RSVP:", err);
-      alert("Não foi possível atualizar a sua presença. Verifique a ligação.");
+      // Extrair mensagem de erro amigável se disponível
+      const errorMsg = err?.message || err?.details || JSON.stringify(err);
+      alert(`Não foi possível atualizar a sua presença: ${errorMsg}`);
     } finally {
       setIsUpdatingRSVP(false);
     }
@@ -161,65 +163,69 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 min-w-[240px]">
-                <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest ml-1">Vais estar presente?</p>
+              <div className="flex flex-col gap-3 min-w-[260px]">
+                <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest ml-1 text-center md:text-left">Confirma a tua presença</p>
                 <div className="flex gap-3">
                   <button 
                     disabled={isUpdatingRSVP}
                     onClick={() => handleUpdateRSVP(true)}
-                    className={`flex-1 py-4 rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 border-2 ${
+                    className={`flex-1 py-4 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border-2 shadow-lg ${
                       currentRSVP?.attending === true 
-                        ? 'bg-padelgreen-400 text-petrol-900 border-padelgreen-400' 
-                        : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white'
+                        ? 'bg-padelgreen-400 text-petrol-950 border-padelgreen-400 shadow-padelgreen-400/20' 
+                        : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white hover:border-white/20'
                     }`}
                   >
                     {isUpdatingRSVP ? '...' : (
-                      <>Vou {currentRSVP?.attending === true && '✅'}</>
+                      <>VOU {currentRSVP?.attending === true && '✅'}</>
                     )}
                   </button>
                   <button 
                     disabled={isUpdatingRSVP}
                     onClick={() => handleUpdateRSVP(false)}
-                    className={`flex-1 py-4 rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 border-2 ${
+                    className={`flex-1 py-4 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border-2 shadow-lg ${
                       currentRSVP?.attending === false 
-                        ? 'bg-red-500 text-white border-red-500' 
-                        : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white'
+                        ? 'bg-red-500 text-white border-red-500 shadow-red-500/20' 
+                        : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white hover:border-white/20'
                     }`}
                   >
                     {isUpdatingRSVP ? '...' : (
-                      <>Não {currentRSVP?.attending === false && '❌'}</>
+                      <>NÃO {currentRSVP?.attending === false && '❌'}</>
                     )}
                   </button>
                 </div>
               </div>
             </div>
             
-            {userRole === Role.ADMIN && (
-              <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4">Confirmados ({attendeesForNext.going.length})</p>
-                  <div className="flex flex-wrap gap-2">
-                    {attendeesForNext.going.length > 0 ? attendeesForNext.going.map(u => (
-                      <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5">
-                        <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
-                        <span className="text-xs font-medium">{u?.name}</span>
-                      </div>
-                    )) : <span className="text-xs text-petrol-400 italic">Ninguém confirmou ainda.</span>}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4">Indisponíveis ({attendeesForNext.notGoing.length})</p>
-                  <div className="flex flex-wrap gap-2">
-                    {attendeesForNext.notGoing.length > 0 ? attendeesForNext.notGoing.map(u => (
-                      <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5 opacity-60">
-                        <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
-                        <span className="text-xs font-medium">{u?.name}</span>
-                      </div>
-                    )) : <span className="text-xs text-petrol-400 italic">Sem cancelamentos.</span>}
-                  </div>
+            <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-padelgreen-400 rounded-full"></span>
+                  Confirmados ({attendeesForNext.going.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {attendeesForNext.going.length > 0 ? attendeesForNext.going.map(u => (
+                    <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                      <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                      <span className="text-xs font-medium">{u?.name}</span>
+                    </div>
+                  )) : <span className="text-xs text-petrol-400 italic">Ninguém confirmou ainda.</span>}
                 </div>
               </div>
-            )}
+              <div>
+                <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                  Indisponíveis ({attendeesForNext.notGoing.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {attendeesForNext.notGoing.length > 0 ? attendeesForNext.notGoing.map(u => (
+                    <div key={u?.id} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5 opacity-60">
+                      <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                      <span className="text-xs font-medium">{u?.name}</span>
+                    </div>
+                  )) : <span className="text-xs text-petrol-400 italic">Sem cancelamentos.</span>}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : (

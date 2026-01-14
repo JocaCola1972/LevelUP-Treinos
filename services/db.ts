@@ -86,11 +86,13 @@ export const db = {
     },
     deleteByUserAndDate: async (userId: string, shiftId: string, date: string) => {
       ensureConfig();
-      const { error } = await supabase.from('rsvps').delete().match({ 
-        userId: userId, 
-        shiftId: shiftId, 
-        date: date 
-      });
+      // Usar .eq() encadeado é mais robusto para colunas com quotes ("userId")
+      const { error } = await supabase
+        .from('rsvps')
+        .delete()
+        .eq('userId', userId)
+        .eq('shiftId', shiftId)
+        .eq('date', date);
       if (error) throw error;
     }
   }
