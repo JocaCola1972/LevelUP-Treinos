@@ -13,7 +13,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const [deletingSession, setDeletingSession] = useState<TrainingSession | null>(null);
   const [isPastModalOpen, setIsPastModalOpen] = useState(false);
   const [isSavingPast, setIsSavingPast] = useState(false);
-  const [videoToPlay, setVideoToPlay] = useState<string | null>(null);
 
   const activeSession = state.sessions.find(s => s.isActive);
   const userRole = state.currentUser?.role;
@@ -96,17 +95,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     } finally {
       setIsSavingPast(false);
     }
-  };
-
-  // Helper para converter URL do YouTube em Embed
-  const getEmbedUrl = (url: string) => {
-    if (!url) return null;
-    let videoId = '';
-    if (url.includes('v=')) videoId = url.split('v=')[1].split('&')[0];
-    else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].split('?')[0];
-    else if (url.includes('embed/')) return url;
-    
-    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
   };
 
   // Filtragem e Ordenação Decrescente
@@ -218,13 +206,16 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                       </div>
                       <div className="flex gap-2">
                         {session.youtubeUrl && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setVideoToPlay(session.youtubeUrl!); }}
+                          <a 
+                            href={session.youtubeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                            title="Reproduzir Vídeo"
+                            title="Abrir Vídeo Original"
                           >
                             ▶️
-                          </button>
+                          </a>
                         )}
                         <span className="text-slate-300 text-sm flex items-center ml-1">→</span>
                       </div>
@@ -240,42 +231,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
           </div>
         )}
       </div>
-
-      {/* Video Player Modal */}
-      {videoToPlay && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col p-4 md:p-8">
-          <div className="flex justify-between items-center mb-6 max-w-5xl mx-auto w-full">
-            <h3 className="text-white font-bold text-lg md:text-xl">Análise de Treino</h3>
-            <div className="flex items-center gap-4">
-              <a 
-                href={videoToPlay} 
-                target="_blank" 
-                rel="noreferrer"
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
-              >
-                <span>🔗</span> Abrir na App Original
-              </a>
-              <button 
-                onClick={() => setVideoToPlay(null)}
-                className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full font-bold text-xl hover:bg-padelgreen-400 transition-all"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 max-w-5xl mx-auto w-full rounded-3xl overflow-hidden bg-slate-900 shadow-2xl relative">
-            <iframe 
-              src={getEmbedUrl(videoToPlay)!} 
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowFullScreen
-            ></iframe>
-          </div>
-          <div className="mt-6 text-center text-slate-500 text-xs font-medium">
-            Pressione ESC ou clique no '×' para voltar ao histórico.
-          </div>
-        </div>
-      )}
 
       {/* Modal: Registar Treino Passado */}
       {isPastModalOpen && (
@@ -355,22 +310,14 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
               {selectedSession.youtubeUrl && (
                 <div>
                   <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Análise de Vídeo</h4>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button 
-                      onClick={() => setVideoToPlay(selectedSession.youtubeUrl!)}
-                      className="flex-1 flex items-center justify-center gap-3 p-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-[0.98]"
-                    >
-                      <span className="text-xl">▶️</span> Reproduzir na Aplicação
-                    </button>
-                    <a 
-                      href={selectedSession.youtubeUrl} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="p-4 bg-slate-100 text-slate-600 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-200 transition-all"
-                    >
-                      Abrir no YouTube
-                    </a>
-                  </div>
+                  <a 
+                    href={selectedSession.youtubeUrl} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-[0.98]"
+                  >
+                    <span className="text-xl">📺</span> Abrir Gravação (Aplicação Externa)
+                  </a>
                 </div>
               )}
               
