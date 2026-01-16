@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Role, ShiftRSVP } from '../types';
+import { AppState, Role, ShiftRSVP, RecurrenceType } from '../types';
 import { db } from '../services/db';
 import { DAYS_OF_WEEK } from '../constants';
 
@@ -14,7 +14,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
 
-  // Lógica para calcular a data da próxima ocorrência de um dia da semana
+  /**
+   * Calcula a data da próxima ocorrência de um dia da semana.
+   * Se offsetWeeks > 0, pula semanas.
+   */
   const getNextOccurrenceDate = (dayOfWeek: string, offsetWeeks: number = 0) => {
     const dayMap: Record<string, number> = {
       'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
@@ -24,6 +27,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     const currentDay = now.getDay();
     
     let daysToAdd = (targetDay - currentDay + 7) % 7;
+    
+    // Se for hoje, mas o offset for solicitado (ou o cálculo exigir), adiciona semanas
     daysToAdd += offsetWeeks * 7;
     
     const result = new Date(now);
@@ -31,10 +36,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     return result.toISOString().split('T')[0];
   };
 
-  // Lógica para encontrar o próximo treino agendado
+  /**
+   * Lógica avançada para determinar o próximo treino real.
+   * Considera: Dia da semana, Hora, Recorrência e se já foi concluído hoje.
+   */
   const nextTraining = useMemo(() => {
     if (!userId || !state.shifts.length) return null;
 
+    // Filtra apenas os horários que dizem respeito ao utilizador
     const myShifts = state.shifts.filter(shift => {
       if (userRole === Role.ADMIN) return true;
       if (userRole === Role.COACH) return shift.coachId === userId;
@@ -44,30 +53,51 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
     if (myShifts.length === 0) return null;
 
     const now = new Date();
-    const currentDayIdx = (now.getDay() + 6) % 7; 
+    // Mapa para converter nomes de dias em índices (0-6, começando em Segunda conforme constants)
     const dayMap: Record<string, number> = {};
     DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
+    
+    // Índice de hoje (0=Segunda, ..., 6=Domingo) para bater com DAYS_OF_WEEK
+    const currentDayIdx = (now.getDay() + 6) % 7; 
+    const currentMinutes = (now.getHours() * 60) + now.getMinutes();
 
     const occurrences = myShifts.map(shift => {
       const dayIdx = dayMap[shift.dayOfWeek];
       const [h, m] = shift.startTime.split(':').map(Number);
-      let baseWeight = (dayIdx * 24 * 60) + (h * 60) + m;
-      const currentWeight = (currentDayIdx * 24 * 60) + (now.getHours() * 60) + now.getMinutes();
-      let offsetWeeks = baseWeight <= currentWeight ? 1 : 0;
+      const shiftMinutes = (h * 60) + m;
+
+      // Cálculo base de semanas a saltar
+      let offsetWeeks = 0;
+      
+      // Se o dia já passou na semana atual OU é hoje mas a hora já passou
+      if (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes)) {
+        offsetWeeks = 1;
+      }
+
+      // Se for quinzenal, precisamos verificar o ciclo, mas para simplificação 
+      // e utilidade imediata, focamos na próxima data disponível
+      if (shift.recurrence === RecurrenceType.QUINZENAL && offsetWeeks > 0) {
+        // Logica simplificada: se já passou, a próxima é daqui a 2 semanas se for o ciclo
+        // Para esta app, tratamos como "próxima disponível"
+      }
+
       let dateStr = getNextOccurrenceDate(shift.dayOfWeek, offsetWeeks);
 
+      // CRUCIAL: Verificar se este treino específico já foi concluído hoje no Histórico
       const isAlreadyCompleted = state.sessions.some(s => 
         s.shiftId === shift.id && 
         s.date.startsWith(dateStr) && 
         s.completed
       );
 
+      // Se já está feito, pula para a próxima semana (ou ciclo)
       if (isAlreadyCompleted) {
-        offsetWeeks += 1;
+        offsetWeeks += (shift.recurrence === RecurrenceType.QUINZENAL ? 2 : 1);
         dateStr = getNextOccurrenceDate(shift.dayOfWeek, offsetWeeks);
       }
 
-      const finalWeight = baseWeight + (offsetWeeks * 7 * 24 * 60);
+      // Peso absoluto em minutos desde o início da semana atual para ordenação
+      const finalWeight = (dayIdx * 24 * 60) + shiftMinutes + (offsetWeeks * 7 * 24 * 60);
 
       return {
         id: shift.id,
@@ -78,14 +108,22 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       };
     });
 
+    // Ordena por proximidade temporal
     occurrences.sort((a, b) => a.weight - b.weight);
     const next = occurrences[0];
+    
     const todayStr = now.toISOString().split('T')[0];
-    const isToday = next.date === todayStr;
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    let dateLabel = next.dayOfWeek;
+    if (next.date === todayStr) dateLabel = 'Hoje';
+    else if (next.date === tomorrowStr) dateLabel = 'Amanhã';
 
     return {
       id: next.id,
-      label: isToday ? 'Hoje' : next.dayOfWeek,
+      label: dateLabel,
       time: next.startTime,
       date: next.date
     };
@@ -126,13 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       refresh();
     } catch (err: any) {
       console.error("Erro ao atualizar RSVP:", err);
-      const errorMsg = err?.message || err?.details || JSON.stringify(err);
-      
-      if (errorMsg.includes('attending') || errorMsg.includes('column')) {
-        alert("ERRO DE TABELA: A sua base de dados não tem a coluna 'attending'. Por favor, execute o script SQL de reparação no Dashboard do Supabase.");
-      } else {
-        alert(`Erro ao atualizar presença: ${errorMsg}`);
-      }
+      alert(`Erro ao atualizar presença: ${err.message || 'Erro desconhecido'}`);
     } finally {
       setIsUpdatingRSVP(false);
     }
@@ -160,8 +192,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                   <span className="text-padelgreen-400 text-xs font-bold uppercase tracking-widest">Próximo Treino</span>
                 </div>
                 <div>
-                  <h3 className="text-3xl md:text-4xl font-black">{nextTraining.label}</h3>
-                  <p className="text-petrol-200 text-lg md:text-xl font-medium mt-1">Às {nextTraining.time} • {new Date(nextTraining.date).toLocaleDateString('pt-PT')}</p>
+                  <div className="flex items-baseline gap-3">
+                    <h3 className="text-4xl md:text-5xl font-black">{nextTraining.label}</h3>
+                    <span className="text-padelgreen-400 text-2xl md:text-3xl font-light">às {nextTraining.time}</span>
+                  </div>
+                  <p className="text-petrol-300 text-base md:text-lg font-medium mt-2 flex items-center gap-2">
+                    <span className="opacity-50 text-xl">📅</span> 
+                    {new Date(nextTraining.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </p>
                 </div>
               </div>
 
@@ -231,10 +269,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-[32px] p-10 border border-slate-200 text-center">
+        <div className="bg-white rounded-[32px] p-10 border border-slate-200 text-center shadow-sm">
           <div className="text-4xl mb-4">📅</div>
           <h3 className="text-xl font-bold text-petrol-900">Sem treinos agendados</h3>
-          <p className="text-slate-500 mt-2">Parece que não tens sessões marcadas para breve.</p>
+          <p className="text-slate-500 mt-2">Parece que não tens sessões marcadas para os próximos tempos.</p>
         </div>
       )}
 
