@@ -114,27 +114,20 @@ const App: React.FC = () => {
           <p className="text-red-500 font-medium mb-6 text-xs md:text-sm break-words px-2">{initError}</p>
           
           <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 text-left text-xs md:text-sm mb-6">
-            <p className="font-bold text-slate-700 mb-4">Copia e executa este SQL no "SQL Editor" do Supabase para corrigir a tabela de presenças:</p>
+            <p className="font-bold text-slate-700 mb-4">Copia e executa este SQL no "SQL Editor" do Supabase para corrigir a base de dados:</p>
             <pre className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl text-[9px] md:text-[10px] overflow-x-auto leading-relaxed font-mono select-all whitespace-pre-wrap">
-{`-- FIX: Adicionar coluna 'attending' se não existir
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rsvps' AND column_name='attending') THEN
-        ALTER TABLE rsvps ADD COLUMN "attending" BOOLEAN DEFAULT true;
-    END IF;
-END $$;
-
--- Garantir tabelas base
+{`-- 1. Garantir tabela de utilizadores com telefone único
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   avatar TEXT,
   phone TEXT UNIQUE NOT NULL,
-  password TEXT,
+  password TEXT DEFAULT '123',
   active BOOLEAN DEFAULT true
 );
 
+-- 2. Garantir tabela de horários
 CREATE TABLE IF NOT EXISTS shifts (
   id TEXT PRIMARY KEY,
   "dayOfWeek" TEXT NOT NULL,
@@ -146,6 +139,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   "startDate" TEXT
 );
 
+-- 3. Garantir tabela de sessões/treinos
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   "shiftId" TEXT NOT NULL,
@@ -159,6 +153,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   "hiddenForUserIds" TEXT[] DEFAULT '{}'
 );
 
+-- 4. Garantir tabela de presenças (RSVPs)
 CREATE TABLE IF NOT EXISTS rsvps (
   id TEXT PRIMARY KEY,
   "shiftId" TEXT NOT NULL,
@@ -166,7 +161,15 @@ CREATE TABLE IF NOT EXISTS rsvps (
   date TEXT NOT NULL,
   "attending" BOOLEAN DEFAULT true,
   UNIQUE("userId", "shiftId", date)
-);`}
+);
+
+-- 5. Adicionar coluna 'attending' se faltar (para compatibilidade)
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rsvps' AND column_name='attending') THEN
+        ALTER TABLE rsvps ADD COLUMN "attending" BOOLEAN DEFAULT true;
+    END IF;
+END $$;`}
             </pre>
           </div>
           

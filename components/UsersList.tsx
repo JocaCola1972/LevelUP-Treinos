@@ -16,8 +16,58 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem a certeza que deseja remover este utilizador?')) {
-      await db.users.delete(id);
-      refresh();
+      try {
+        await db.users.delete(id);
+        refresh();
+      } catch (err: any) {
+        alert(`Erro ao apagar: ${err.message || 'Erro desconhecido'}`);
+      }
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    
+    const formData = new FormData(e.currentTarget);
+    const phone = formData.get('phone') as string;
+    const name = formData.get('name') as string;
+    
+    // Validação básica local
+    if (!editingUser) {
+      const exists = state.users.find(u => u.phone === phone);
+      if (exists) {
+        alert(`O número ${phone} já está registado para o utilizador ${exists.name}.`);
+        setSaving(false);
+        return;
+      }
+    }
+
+    try {
+      const newUser: User = {
+        id: editingUser?.id || `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        name: name,
+        role: formData.get('role') as Role,
+        phone: phone,
+        password: (formData.get('password') as string) || '123',
+        avatar: editingUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+        active: true
+      };
+
+      await db.users.save(newUser);
+      await refresh();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error("Erro ao guardar utilizador:", err);
+      const errorMsg = err?.message || err?.details || "Erro de ligação à base de dados.";
+      
+      if (errorMsg.includes('unique constraint') || errorMsg.includes('already exists')) {
+        alert("Erro: Este número de telefone já está a ser utilizado por outro utilizador.");
+      } else {
+        alert(`Não foi possível guardar o utilizador: ${errorMsg}`);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -40,7 +90,7 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
         {state.users.map(user => (
           <div key={user.id} className="bg-white rounded-3xl border border-slate-200 p-5 md:p-6 flex flex-col items-center text-center group hover:shadow-xl transition-all hover:border-padelgreen-400">
             <div className="relative mb-4">
-              <img src={user.avatar} className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover ring-4 ring-slate-50 group-hover:ring-padelgreen-100 transition-all" alt="" />
+              <img src={user.avatar} className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover ring-4 ring-slate-50 group-hover:ring-padelgreen-100 transition-all bg-slate-100" alt="" />
               <div className={`absolute bottom-0 right-0 w-5 h-5 md:w-6 md:h-6 rounded-full border-4 border-white ${user.active !== false ? 'bg-green-500' : 'bg-slate-300'}`}></div>
             </div>
             <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-1 line-clamp-1">{user.name}</h3>
@@ -79,31 +129,14 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
           <div className="bg-white rounded-t-[40px] sm:rounded-3xl w-full max-w-md p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden"></div>
             <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6 text-center sm:text-left">{editingUser ? 'Editar Perfil' : 'Criar Utilizador'}</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setSaving(true);
-              const formData = new FormData(e.currentTarget);
-              const newUser: User = {
-                id: editingUser?.id || Math.random().toString(36).substr(2, 9),
-                name: formData.get('name') as string,
-                role: formData.get('role') as Role,
-                phone: formData.get('phone') as string,
-                password: (formData.get('password') as string) || '123',
-                avatar: editingUser?.avatar || `https://picsum.photos/seed/${Math.random()}/200`,
-                active: true
-              };
-              await db.users.save(newUser);
-              await refresh();
-              setSaving(false);
-              setIsModalOpen(false);
-            }} className="space-y-4 pb-8 sm:pb-0">
+            <form onSubmit={handleSave} className="space-y-4 pb-8 sm:pb-0">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Nome Completo</label>
-                <input required name="name" defaultValue={editingUser?.name} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
+                <input required name="name" defaultValue={editingUser?.name} placeholder="Ex: João Silva" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Telefone</label>
-                <input required name="phone" defaultValue={editingUser?.phone} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
+                <input required name="phone" type="tel" defaultValue={editingUser?.phone} placeholder="912345678" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Função</label>
@@ -134,8 +167,9 @@ const UsersList: React.FC<UsersListProps> = ({ state, refresh }) => {
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" disabled={saving} onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">
-                  {saving ? '...' : 'Guardar'}
+                <button type="submit" disabled={saving} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                  {saving && <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>}
+                  {saving ? 'A guardar...' : 'Guardar'}
                 </button>
               </div>
             </form>
