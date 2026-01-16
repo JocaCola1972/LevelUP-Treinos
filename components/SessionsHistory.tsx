@@ -85,6 +85,17 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     }
 
     return false;
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Identifica quais os slots que podem ser abertos (exclui os já finalizados hoje)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const availableShiftsToStart = state.shifts.filter(shift => {
+    const isAlreadyFinishedToday = state.sessions.some(s => 
+      s.shiftId === shift.id && 
+      s.date.startsWith(todayStr) && 
+      s.completed
+    );
+    return !isAlreadyFinishedToday;
   });
 
   return (
@@ -119,12 +130,12 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
           </div>
         </div>
       ) : (
-        userRole !== Role.STUDENT && (
+        userRole !== Role.STUDENT && availableShiftsToStart.length > 0 && (
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-petrol-900 ml-2">Abrir Novo Treino</h3>
             <div className="overflow-x-auto pb-4 -mx-1 px-1">
               <div className="flex md:grid md:grid-cols-4 gap-4 min-w-[600px] md:min-w-0">
-                {state.shifts.slice(0, 4).map(shift => (
+                {availableShiftsToStart.slice(0, 4).map(shift => (
                   <div key={shift.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-padelgreen-400 transition-all group flex-1 shadow-sm">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{shift.dayOfWeek}</p>
                     <p className="text-lg font-bold text-petrol-900 mb-4">{shift.startTime}</p>
@@ -155,10 +166,12 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {historicalSessions.map(session => {
               const shift = state.shifts.find(s => s.id === session.shiftId);
+              const sessionDate = new Date(session.date);
+              
               return (
                 <div 
                   key={session.id} 
-                  className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-lg transition-all group/card"
+                  className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-lg transition-all group/card flex flex-col"
                 >
                   {isAdmin && (
                     <button 
@@ -171,27 +184,56 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   
                   <div 
                     onClick={() => setSelectedSession(session)}
-                    className="cursor-pointer"
+                    className="cursor-pointer flex-1 flex flex-col"
                   >
                     <div className="flex justify-between items-start mb-4 pr-8">
-                      <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(session.date).toLocaleDateString()}</span>
-                      <span className={`text-[9px] md:text-[10px] font-bold px-2.5 py-1 rounded-full ${session.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {session.completed ? 'CONCLUÍDO' : 'PENDENTE'}
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+                          {sessionDate.toLocaleDateString('pt-PT', { weekday: 'long' })}
+                        </span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-black text-petrol-950 leading-none">
+                            {sessionDate.getDate()}
+                          </span>
+                          <span className="text-sm font-bold text-petrol-700 capitalize">
+                            de {sessionDate.toLocaleDateString('pt-PT', { month: 'long' })}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
+                        CONCLUÍDO
                       </span>
                     </div>
-                    <h3 className="text-base md:text-lg font-bold text-petrol-900 mb-2 leading-tight">
-                      {shift?.dayOfWeek} <span className="text-slate-400 font-medium">às {shift?.startTime}</span>
-                    </h3>
-                    <p className="text-xs md:text-sm text-slate-500 line-clamp-2 mb-4 h-8 md:h-10">
-                      {session.notes || "Nenhuma nota registada."}
+
+                    <div className="mb-4">
+                      <h3 className="text-sm font-bold text-slate-500 flex items-center gap-1.5">
+                        <span className="text-lg">🕒</span> Horário: {shift?.startTime}
+                      </h3>
+                    </div>
+
+                    <p className="text-xs md:text-sm text-slate-400 line-clamp-2 mb-6 italic leading-relaxed">
+                      {session.notes ? `"${session.notes}"` : "Sem observações registadas para este treino."}
                     </p>
-                    <div className="flex items-center justify-between mt-auto">
+
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
                       <div className="flex -space-x-2">
-                        {session.attendeeIds.slice(0, 4).map(id => (
-                          <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white" alt="" />
-                        ))}
+                        {session.attendeeIds.length > 0 ? (
+                          session.attendeeIds.slice(0, 4).map(id => (
+                            <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white bg-slate-100" alt="" />
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-300 font-bold uppercase tracking-tighter">Sem presenças</span>
+                        )}
+                        {session.attendeeIds.length > 4 && (
+                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                            +{session.attendeeIds.length - 4}
+                          </div>
+                        )}
                       </div>
-                      {session.youtubeUrl && <span className="text-red-500 text-lg">▶️</span>}
+                      <div className="flex gap-2">
+                        {session.youtubeUrl && <span className="text-red-500 text-lg" title="Tem vídeo">▶️</span>}
+                        <span className="text-slate-300 text-sm">→</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -221,8 +263,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Data</p>
-                  <p className="text-sm md:text-base font-semibold text-petrol-800">{new Date(selectedSession.date).toLocaleDateString()}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Data do Treino</p>
+                  <p className="text-sm md:text-base font-semibold text-petrol-800">{new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Presenças</p>
@@ -320,7 +362,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
       {/* Modal de Confirmação de Apagar */}
       {deletingSession && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-petrol-950/60 backdrop-blur-md">
-          <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl">
+          <div className="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h3 className="text-xl font-bold text-petrol-900 text-center mb-6">Remover Histórico</h3>
             <div className="space-y-3">
               <button 
