@@ -13,6 +13,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const [deletingSession, setDeletingSession] = useState<TrainingSession | null>(null);
   const [isPastModalOpen, setIsPastModalOpen] = useState(false);
   const [isSavingPast, setIsSavingPast] = useState(false);
+  const [videoToPlay, setVideoToPlay] = useState<string | null>(null);
 
   const activeSession = state.sessions.find(s => s.isActive);
   const userRole = state.currentUser?.role;
@@ -97,26 +98,25 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     }
   };
 
-  // Filtragem e Ordenação Decrescente (Mais recente primeiro)
+  // Helper para converter URL do YouTube em Embed
+  const getEmbedUrl = (url: string) => {
+    if (!url) return null;
+    let videoId = '';
+    if (url.includes('v=')) videoId = url.split('v=')[1].split('&')[0];
+    else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].split('?')[0];
+    else if (url.includes('embed/')) return url;
+    
+    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
+  };
+
+  // Filtragem e Ordenação Decrescente
   const historicalSessions = state.sessions.filter(s => {
     if (s.isActive || !s.completed) return false;
     if ((s.hiddenForUserIds || []).includes(userId || '')) return false;
-
-    // ADMIN vê tudo
     if (userRole === Role.ADMIN) return true;
-
     const shift = state.shifts.find(sh => sh.id === s.shiftId);
-    
-    // TREINADOR vê apenas os treinos que deu
-    if (userRole === Role.COACH) {
-      return shift?.coachId === userId;
-    }
-
-    // ALUNO vê apenas os treinos onde esteve presente
-    if (userRole === Role.STUDENT) {
-      return s.attendeeIds.includes(userId || '');
-    }
-
+    if (userRole === Role.COACH) return shift?.coachId === userId;
+    if (userRole === Role.STUDENT) return s.attendeeIds.includes(userId || '');
     return false;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -132,14 +132,12 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* Active Session / Quick Actions Section */}
+      {/* Quick Actions Header */}
       <div className="flex flex-col md:flex-row gap-4">
         {activeSession ? (
           <div className="flex-1 bg-padelgreen-50 border-2 border-padelgreen-400 p-6 rounded-3xl shadow-lg shadow-padelgreen-400/10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-5 w-full md:w-auto">
-              <div className="w-16 h-16 bg-padelgreen-400 rounded-2xl animate-pulse flex items-center justify-center shrink-0 shadow-lg shadow-padelgreen-500/20 text-3xl">
-                🎾
-              </div>
+              <div className="w-16 h-16 bg-padelgreen-400 rounded-2xl animate-pulse flex items-center justify-center shrink-0 shadow-lg shadow-padelgreen-500/20 text-3xl">🎾</div>
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-petrol-900 leading-tight">Treino em Curso</h3>
                 <p className="text-sm text-petrol-700">A sessão está ativa.</p>
@@ -184,7 +182,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
       {/* History Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between ml-2">
-          <h3 className="text-lg font-bold text-petrol-900">Histórico de Treinos Concluídos</h3>
+          <h3 className="text-lg font-bold text-petrol-900">Histórico de Treinos</h3>
           <button onClick={refresh} className="text-[10px] font-bold text-slate-400 hover:text-petrol-500 uppercase tracking-widest">🔄 Atualizar</button>
         </div>
         
@@ -219,8 +217,16 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        {session.youtubeUrl && <span className="text-red-500 text-lg">▶️</span>}
-                        <span className="text-slate-300 text-sm">→</span>
+                        {session.youtubeUrl && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setVideoToPlay(session.youtubeUrl!); }}
+                            className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                            title="Reproduzir Vídeo"
+                          >
+                            ▶️
+                          </button>
+                        )}
+                        <span className="text-slate-300 text-sm flex items-center ml-1">→</span>
                       </div>
                     </div>
                   </div>
@@ -230,22 +236,57 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
           </div>
         ) : (
           <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-300 text-center">
-            <p className="text-slate-400 font-medium">Nenhum treino encontrado no histórico com as suas credenciais.</p>
+            <p className="text-slate-400 font-medium">Nenhum treino encontrado no histórico.</p>
           </div>
         )}
       </div>
 
-      {/* Modal: Registar Treino Passado (Admin Only) */}
+      {/* Video Player Modal */}
+      {videoToPlay && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col p-4 md:p-8">
+          <div className="flex justify-between items-center mb-6 max-w-5xl mx-auto w-full">
+            <h3 className="text-white font-bold text-lg md:text-xl">Análise de Treino</h3>
+            <div className="flex items-center gap-4">
+              <a 
+                href={videoToPlay} 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
+              >
+                <span>🔗</span> Abrir na App Original
+              </a>
+              <button 
+                onClick={() => setVideoToPlay(null)}
+                className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full font-bold text-xl hover:bg-padelgreen-400 transition-all"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 max-w-5xl mx-auto w-full rounded-3xl overflow-hidden bg-slate-900 shadow-2xl relative">
+            <iframe 
+              src={getEmbedUrl(videoToPlay)!} 
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+              allowFullScreen
+            ></iframe>
+          </div>
+          <div className="mt-6 text-center text-slate-500 text-xs font-medium">
+            Pressione ESC ou clique no '×' para voltar ao histórico.
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registar Treino Passado */}
       {isPastModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 bg-petrol-950/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-[32px] md:rounded-3xl w-full max-w-xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6">Registar Treino Retroativo</h3>
-            
             <form onSubmit={handleSavePastSession} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 tracking-wider">Horário de Referência</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Horário</label>
                   <select name="shiftId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm">
                     {state.shifts.map(sh => (
                       <option key={sh.id} value={sh.id}>{sh.dayOfWeek} às {sh.startTime}</option>
@@ -253,13 +294,12 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 tracking-wider">Data do Treino</label>
-                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm" />
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
+                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
                 </div>
               </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 tracking-wider">Alunos Presentes</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Alunos Presentes</label>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   {state.users.filter(u => u.role === Role.STUDENT).map(student => (
                     <label key={student.id} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer">
@@ -269,20 +309,11 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   ))}
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 tracking-wider">Notas de Treino</label>
-                <textarea name="notes" placeholder="Descreva os focos técnicos trabalhados..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm h-24"></textarea>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 tracking-wider">Link YouTube</label>
-                <input type="url" name="youtubeUrl" placeholder="https://youtube.com/..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm" />
-              </div>
-
+              <textarea name="notes" placeholder="Notas técnicas..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-sm h-24"></textarea>
+              <input type="url" name="youtubeUrl" placeholder="Link YouTube (Opcional)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setIsPastModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl">Cancelar</button>
-                <button type="submit" disabled={isSavingPast} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2">
+                <button type="submit" disabled={isSavingPast} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg">
                   {isSavingPast ? "A Guardar..." : "Registar Treino"}
                 </button>
               </div>
@@ -291,60 +322,79 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         </div>
       )}
 
-      {/* Detail Modal (Previously implemented) */}
+      {/* Detail Modal */}
       {selectedSession && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-petrol-950/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-[32px] md:rounded-3xl w-full max-w-2xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">{selectedSession.isActive ? 'Gestão de Treino' : 'Detalhes do Treino'}</h3>
+              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">Detalhes do Treino</h3>
               <button onClick={() => setSelectedSession(null)} className="hidden md:block text-slate-400 hover:text-slate-600 text-3xl">×</button>
             </div>
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Data do Treino</p>
-                  <p className="text-sm md:text-base font-semibold text-petrol-800">{new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Data do Treino</p>
+                  <p className="text-sm font-semibold">{new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Presenças</p>
-                  <p className="text-sm md:text-base font-semibold text-petrol-800">{selectedSession.attendeeIds.length} Alunos</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Presenças</p>
+                  <p className="text-sm font-semibold">{selectedSession.attendeeIds.length} Alunos</p>
                 </div>
               </div>
+              
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Notas do Treinador</h4>
                 {isStaff ? (
-                  <textarea placeholder="Registe as observações técnicas aqui..." defaultValue={selectedSession.notes} onBlur={async (e) => { const updated = { ...selectedSession, notes: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32 transition-all" />
+                  <textarea defaultValue={selectedSession.notes} onBlur={async (e) => { const updated = { ...selectedSession, notes: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32" />
                 ) : (
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm md:text-base min-h-24 leading-relaxed">{selectedSession.notes || "Sem notas disponíveis."}</div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm">{selectedSession.notes || "Sem notas."}</div>
                 )}
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vídeo da Sessão (YouTube)</h4>
-                {isStaff ? (
-                  <input type="url" placeholder="https://www.youtube.com/watch?v=..." defaultValue={selectedSession.youtubeUrl} onBlur={async (e) => { const updated = { ...selectedSession, youtubeUrl: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-padelgreen-400 outline-none text-sm transition-all" />
-                ) : (
-                  selectedSession.youtubeUrl ? <a href={selectedSession.youtubeUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center md:justify-start gap-3 p-4 bg-red-50 text-red-700 rounded-2xl font-bold border border-red-100 hover:bg-red-100 transition-all active:scale-[0.98]"><span className="text-xl">📺</span> Ver Gravação no YouTube</a> : <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-sm italic">Nenhum vídeo disponível.</div>
-                )}
-              </div>
+
+              {selectedSession.youtubeUrl && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Análise de Vídeo</h4>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button 
+                      onClick={() => setVideoToPlay(selectedSession.youtubeUrl!)}
+                      className="flex-1 flex items-center justify-center gap-3 p-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-[0.98]"
+                    >
+                      <span className="text-xl">▶️</span> Reproduzir na Aplicação
+                    </button>
+                    <a 
+                      href={selectedSession.youtubeUrl} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="p-4 bg-slate-100 text-slate-600 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-200 transition-all"
+                    >
+                      Abrir no YouTube
+                    </a>
+                  </div>
+                </div>
+              )}
+              
+              {isStaff && !selectedSession.youtubeUrl && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Adicionar Vídeo (Link YouTube)</h4>
+                  <input type="url" placeholder="https://..." onBlur={async (e) => { const updated = { ...selectedSession, youtubeUrl: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
+                </div>
+              )}
             </div>
-            <div className="flex gap-4 mt-8">
-              <button onClick={() => setSelectedSession(null)} className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Fechar</button>
-              {selectedSession.isActive && isAdmin && <button onClick={() => { handleFinishSession(selectedSession); setSelectedSession(null); }} className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg">Finalizar Treino</button>}
-            </div>
+            <button onClick={() => setSelectedSession(null)} className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl mt-8">Fechar</button>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation */}
       {deletingSession && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-petrol-950/60 backdrop-blur-md">
-          <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl">
             <h3 className="text-xl font-bold text-petrol-900 text-center mb-6">Remover Histórico</h3>
             <div className="space-y-3">
-              <button onClick={() => handleDeleteSession('me')} className="w-full py-4 bg-slate-100 text-petrol-900 font-bold rounded-2xl hover:bg-slate-200 transition-all">Esconder de mim</button>
-              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl hover:bg-red-600 transition-all">Apagar para todos</button>
-              <button onClick={() => setDeletingSession(null)} className="w-full py-4 text-slate-400 font-bold hover:text-slate-600">Cancelar</button>
+              <button onClick={() => handleDeleteSession('me')} className="w-full py-4 bg-slate-100 font-bold rounded-2xl">Esconder de mim</button>
+              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl">Apagar para todos</button>
+              <button onClick={() => setDeletingSession(null)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
             </div>
           </div>
         </div>
