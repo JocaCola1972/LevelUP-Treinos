@@ -74,13 +74,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
         offsetWeeks = 1;
       }
 
-      // Se for quinzenal, precisamos verificar o ciclo, mas para simplificação 
-      // e utilidade imediata, focamos na próxima data disponível
-      if (shift.recurrence === RecurrenceType.QUINZENAL && offsetWeeks > 0) {
-        // Logica simplificada: se já passou, a próxima é daqui a 2 semanas se for o ciclo
-        // Para esta app, tratamos como "próxima disponível"
-      }
-
       let dateStr = getNextOccurrenceDate(shift.dayOfWeek, offsetWeeks);
 
       // CRUCIAL: Verificar se este treino específico já foi concluído hoje no Histórico
@@ -275,24 +268,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           <p className="text-slate-500 mt-2">Parece que não tens sessões marcadas para os próximos tempos.</p>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl mb-4">👥</div>
-          <h4 className="text-2xl font-black text-petrol-900">{state.users.length}</h4>
-          <p className="text-slate-500 text-sm font-medium">Utilizadores</p>
-        </div>
-        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="w-12 h-12 bg-padelgreen-50 text-padelgreen-600 rounded-2xl flex items-center justify-center text-xl mb-4">📅</div>
-          <h4 className="text-2xl font-black text-petrol-900">{state.shifts.length}</h4>
-          <p className="text-slate-500 text-sm font-medium">Horários Ativos</p>
-        </div>
-        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-2xl flex items-center justify-center text-xl mb-4">🎾</div>
-          <h4 className="text-2xl font-black text-petrol-900">{state.sessions.filter(s => s.completed).length}</h4>
-          <p className="text-slate-500 text-sm font-medium">Treinos Feitos</p>
-        </div>
-      </div>
     </div>
   );
 };
