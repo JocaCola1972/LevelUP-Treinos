@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { AppState, Role, TrainingSession, Shift } from '../types';
+import React, { useState, useEffect } from 'react';
+import { AppState, Role, TrainingSession, Shift, User } from '../types';
 import { db } from '../services/db';
 
 interface SessionsHistoryProps {
@@ -10,18 +10,28 @@ interface SessionsHistoryProps {
 
 const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => {
   const [selectedSession, setSelectedSession] = useState<TrainingSession | null>(null);
+  const [editBuffer, setEditBuffer] = useState<TrainingSession | null>(null);
   const [deletingSession, setDeletingSession] = useState<TrainingSession | null>(null);
   const [isPastModalOpen, setIsPastModalOpen] = useState(false);
   const [isSavingPast, setIsSavingPast] = useState(false);
-  const [isEditingSession, setIsEditingSession] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  const activeSession = state.sessions.find(s => s.isActive);
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
   const isAdmin = userRole === Role.ADMIN;
   const isStaff = userRole === Role.ADMIN || userRole === Role.COACH;
 
   const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
+  const activeSession = state.sessions.find(s => s.isActive);
+
+  // Sincronizar o buffer de edição quando uma sessão é selecionada
+  useEffect(() => {
+    if (selectedSession) {
+      setEditBuffer({ ...selectedSession });
+    } else {
+      setEditBuffer(null);
+    }
+  }, [selectedSession]);
 
   const handleStartSession = async (shiftId: string) => {
     const newSession: TrainingSession = {
@@ -46,6 +56,20 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     const updated = { ...session, isActive: false, completed: true };
     await db.sessions.save(updated);
     refresh();
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editBuffer) return;
+    setIsSavingEdit(true);
+    try {
+      await db.sessions.save(editBuffer);
+      refresh();
+      setSelectedSession(null);
+    } catch (err) {
+      alert("Erro ao guardar alterações.");
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const handleDeleteSession = async (mode: 'me' | 'all') => {
@@ -106,45 +130,34 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     }
   };
 
-  const handleUpdateAttendee = async (studentId: string, checked: boolean) => {
-    if (!selectedSession || !isAdmin) return;
-    
-    let newAttendees = [...selectedSession.attendeeIds];
+  // Funções Auxiliares para o Buffer de Edição
+  const updateBufferField = (field: keyof TrainingSession, value: any) => {
+    if (!editBuffer) return;
+    setEditBuffer({ ...editBuffer, [field]: value });
+  };
+
+  const updateBufferDateTime = (type: 'date' | 'time', value: string) => {
+    if (!editBuffer) return;
+    const current = new Date(editBuffer.date);
+    let datePart = current.toISOString().split('T')[0];
+    let timePart = current.toTimeString().split(' ')[0].slice(0, 5);
+
+    if (type === 'date') datePart = value;
+    if (type === 'time') timePart = value;
+
+    const combined = new Date(`${datePart}T${timePart}`);
+    setEditBuffer({ ...editBuffer, date: combined.toISOString() });
+  };
+
+  const toggleBufferAttendee = (studentId: string, checked: boolean) => {
+    if (!editBuffer) return;
+    let newAttendees = [...editBuffer.attendeeIds];
     if (checked) {
       if (!newAttendees.includes(studentId)) newAttendees.push(studentId);
     } else {
       newAttendees = newAttendees.filter(id => id !== studentId);
     }
-    
-    const updated = { ...selectedSession, attendeeIds: newAttendees };
-    setSelectedSession(updated);
-    await db.sessions.save(updated);
-    refresh();
-  };
-
-  const handleUpdateSessionDateTime = async (type: 'date' | 'time', value: string) => {
-    if (!selectedSession || !isAdmin) return;
-    
-    const currentFullDate = new Date(selectedSession.date);
-    let newDateStr = currentFullDate.toISOString().split('T')[0];
-    let newTimeStr = currentFullDate.toTimeString().split(' ')[0].slice(0, 5);
-    
-    if (type === 'date') newDateStr = value;
-    if (type === 'time') newTimeStr = value;
-    
-    const newCombinedDate = new Date(`${newDateStr}T${newTimeStr}`);
-    const updated = { ...selectedSession, date: newCombinedDate.toISOString() };
-    setSelectedSession(updated);
-    await db.sessions.save(updated);
-    refresh();
-  };
-
-  const handleUpdateField = async (field: keyof TrainingSession, value: any) => {
-    if (!selectedSession || !isAdmin) return;
-    const updated = { ...selectedSession, [field]: value };
-    setSelectedSession(updated);
-    await db.sessions.save(updated);
-    refresh();
+    setEditBuffer({ ...editBuffer, attendeeIds: newAttendees });
   };
 
   // Filtragem e Ordenação Decrescente
@@ -182,7 +195,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
               </div>
             </div>
             <div className="flex gap-3 w-full md:w-auto">
-              <button onClick={() => { setSelectedSession(activeSession); setIsEditingSession(false); }} className="flex-1 md:flex-none px-6 py-3 bg-white text-petrol-900 border border-petrol-200 rounded-2xl font-bold transition-all active:scale-95">Ver Detalhes</button>
+              <button onClick={() => setSelectedSession(activeSession)} className="flex-1 md:flex-none px-6 py-3 bg-white text-petrol-900 border border-petrol-200 rounded-2xl font-bold transition-all active:scale-95">Ver Detalhes</button>
               {isAdmin && <button onClick={() => handleFinishSession(activeSession)} className="flex-1 md:flex-none px-8 py-3 bg-petrol-900 text-white rounded-2xl font-bold hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Finalizar</button>}
             </div>
           </div>
@@ -217,7 +230,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         )}
       </div>
 
-      {/* History Grid - Optimized for density */}
+      {/* History Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between ml-2">
           <h3 className="text-lg font-bold text-petrol-900">Histórico de Treinos</h3>
@@ -237,7 +250,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   {isAdmin && (
                     <button onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }} className="absolute top-3 right-3 p-1.5 bg-red-50 text-red-400 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10 text-xs">🗑️</button>
                   )}
-                  <div onClick={() => { setSelectedSession(session); setIsEditingSession(false); }} className="cursor-pointer flex-1 flex flex-col">
+                  <div onClick={() => setSelectedSession(session)} className="cursor-pointer flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-2 pr-6">
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 truncate max-w-[100px]">{displayTurma}</span>
@@ -311,34 +324,26 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <form onSubmit={handleSavePastSession} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Nome da Turma / Identificação</label>
-                  <input 
-                    name="turmaName" 
-                    type="text" 
-                    required 
-                    placeholder="Ex: Turma Manhã, Clínica Padel..." 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm" 
-                  />
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Nome da Turma</label>
+                  <input name="turmaName" type="text" required placeholder="Ex: Turma Manhã, Clínica..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Treinador</label>
-                  <select name="coachId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm">
+                  <select name="coachId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm">
                     {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
-                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
+                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Hora Exata</label>
-                  <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Hora</label>
+                  <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Alunos Presentes</label>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
@@ -350,7 +355,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   ))}
                 </div>
               </div>
-              <textarea name="notes" placeholder="Notas técnicas..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-sm h-24"></textarea>
+              <textarea name="notes" placeholder="Notas técnicas..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm h-24"></textarea>
               <input type="url" name="youtubeUrl" placeholder="Link YouTube (Opcional)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setIsPastModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl">Cancelar</button>
@@ -363,40 +368,39 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         </div>
       )}
 
-      {/* Detail Modal */}
-      {selectedSession && (
+      {/* Modal: Detalhes e Edição */}
+      {selectedSession && editBuffer && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-petrol-950/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-[32px] md:rounded-3xl w-full max-w-2xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">
-                {isAdmin ? 'Editar Histórico' : 'Detalhes do Treino'}
-              </h3>
+              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">{isAdmin ? 'Editar Treino' : 'Detalhes do Treino'}</h3>
               <button onClick={() => setSelectedSession(null)} className="hidden md:block text-slate-400 hover:text-slate-600 text-3xl">×</button>
             </div>
             
             <div className="space-y-6">
+              {/* Turma e Treinador */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Identificação do Treino / Turma</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Turma / Identificação</p>
                   {isAdmin ? (
                     <input 
                       type="text" 
-                      defaultValue={selectedSession.turmaName || ''} 
+                      value={editBuffer.turmaName || ''} 
                       placeholder="Nome da Turma"
-                      onBlur={(e) => handleUpdateField('turmaName', e.target.value)}
+                      onChange={(e) => updateBufferField('turmaName', e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
                     />
                   ) : (
-                    <p className="text-sm font-semibold">{selectedSession.turmaName || 'Treino Regular'}</p>
+                    <p className="text-sm font-semibold">{editBuffer.turmaName || 'Treino Regular'}</p>
                   )}
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Treinador Responsável</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Treinador Responsável</p>
                   {isAdmin ? (
                     <select 
-                      defaultValue={selectedSession.coachId || ''} 
-                      onChange={(e) => handleUpdateField('coachId', e.target.value)}
+                      value={editBuffer.coachId || ''} 
+                      onChange={(e) => updateBufferField('coachId', e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
                     >
                       <option value="">(Usar Treinador da Agenda)</option>
@@ -404,58 +408,51 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     </select>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <img src={state.users.find(u => u.id === (selectedSession.coachId || state.shifts.find(sh => sh.id === selectedSession.shiftId)?.coachId))?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                      <img src={state.users.find(u => u.id === (editBuffer.coachId || state.shifts.find(sh => sh.id === editBuffer.shiftId)?.coachId))?.avatar} className="w-5 h-5 rounded-full" alt="" />
                       <p className="text-sm font-semibold">
-                        {state.users.find(u => u.id === (selectedSession.coachId || state.shifts.find(sh => sh.id === selectedSession.shiftId)?.coachId))?.name}
+                        {state.users.find(u => u.id === (editBuffer.coachId || state.shifts.find(sh => sh.id === editBuffer.shiftId)?.coachId))?.name}
                       </p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Data e Hora do Treino</p>
-                  {isAdmin ? (
-                    <div className="flex gap-2">
-                      <input 
-                        type="date" 
-                        defaultValue={new Date(selectedSession.date).toISOString().split('T')[0]} 
-                        onChange={(e) => handleUpdateSessionDateTime('date', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
-                      />
-                      <input 
-                        type="time" 
-                        defaultValue={new Date(selectedSession.date).toTimeString().split(' ')[0].slice(0, 5)} 
-                        onChange={(e) => handleUpdateSessionDateTime('time', e.target.value)}
-                        className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm font-semibold">
-                      {new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(selectedSession.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  )}
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Estado da Sessão</p>
-                  <p className="text-sm font-semibold text-green-600 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> Concluída e Arquivada
+              {/* Data e Hora */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Data e Hora do Treino</p>
+                {isAdmin ? (
+                  <div className="flex gap-2">
+                    <input 
+                      type="date" 
+                      value={new Date(editBuffer.date).toISOString().split('T')[0]} 
+                      onChange={(e) => updateBufferDateTime('date', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    />
+                    <input 
+                      type="time" 
+                      value={new Date(editBuffer.date).toTimeString().split(' ')[0].slice(0, 5)} 
+                      onChange={(e) => updateBufferDateTime('time', e.target.value)}
+                      className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold">
+                    {new Date(editBuffer.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(editBuffer.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
                   </p>
-                </div>
+                )}
               </div>
 
-              {/* Alunos Presentes - Editável para Admin */}
+              {/* Alunos Presentes */}
               <div>
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Alunos Presentes ({selectedSession.attendeeIds.length})</h4>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Alunos Presentes ({editBuffer.attendeeIds.length})</h4>
                 {isAdmin ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 max-h-48 overflow-y-auto">
                     {state.users.filter(u => u.role === Role.STUDENT).map(student => (
                       <label key={student.id} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:border-padelgreen-200 transition-colors">
                         <input 
                           type="checkbox" 
-                          checked={selectedSession.attendeeIds.includes(student.id)} 
-                          onChange={(e) => handleUpdateAttendee(student.id, e.target.checked)}
+                          checked={editBuffer.attendeeIds.includes(student.id)} 
+                          onChange={(e) => toggleBufferAttendee(student.id, e.target.checked)}
                           className="w-4 h-4 text-padelgreen-500 rounded" 
                         />
                         <span className="text-[11px] font-medium truncate">{student.name}</span>
@@ -464,7 +461,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {selectedSession.attendeeIds.map(id => {
+                    {editBuffer.attendeeIds.map(id => {
                       const student = state.users.find(u => u.id === id);
                       return (
                         <div key={id} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
@@ -477,49 +474,59 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                 )}
               </div>
               
+              {/* Notas Técnicas */}
               <div>
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Notas Técnicas</h4>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Notas Técnicas</h4>
                 {isStaff ? (
                   <textarea 
-                    defaultValue={selectedSession.notes} 
-                    onBlur={async (e) => handleUpdateField('notes', e.target.value)} 
-                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32" 
+                    value={editBuffer.notes || ''} 
+                    onChange={(e) => updateBufferField('notes', e.target.value)} 
+                    placeholder="Registe o foco técnico da sessão..."
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-padelgreen-400 h-32" 
                   />
                 ) : (
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm leading-relaxed italic">
-                    {selectedSession.notes ? `"${selectedSession.notes}"` : "Sem notas registadas."}
+                    {editBuffer.notes ? `"${editBuffer.notes}"` : "Sem notas registadas."}
                   </div>
                 )}
               </div>
 
-              {selectedSession.youtubeUrl && (
-                <div>
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Análise de Vídeo</h4>
-                  <a 
-                    href={selectedSession.youtubeUrl} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="w-full flex items-center justify-center gap-3 p-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg hover:bg-red-700 transition-all active:scale-[0.98]"
-                  >
-                    <span className="text-xl">📺</span> Abrir Gravação (Aplicação Externa)
-                  </a>
-                </div>
-              )}
-              
-              {isStaff && (
-                <div>
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Link da Gravação (YouTube)</h4>
+              {/* YouTube Link */}
+              <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Link da Gravação (YouTube)</h4>
+                {isStaff ? (
                   <input 
                     type="url" 
-                    placeholder="https://..." 
-                    defaultValue={selectedSession.youtubeUrl}
-                    onBlur={async (e) => handleUpdateField('youtubeUrl', e.target.value)} 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" 
+                    placeholder="https://youtube.com/..." 
+                    value={editBuffer.youtubeUrl || ''}
+                    onChange={(e) => updateBufferField('youtubeUrl', e.target.value)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none" 
                   />
-                </div>
+                ) : editBuffer.youtubeUrl && (
+                  <a href={editBuffer.youtubeUrl} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-3 p-4 bg-red-600 text-white rounded-2xl font-bold">
+                    <span>📺</span> Ver Gravação do Treino
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Ações do Modal */}
+            <div className="flex gap-4 mt-8">
+              {isAdmin ? (
+                <>
+                  <button onClick={() => setSelectedSession(null)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl">Cancelar</button>
+                  <button 
+                    onClick={handleSaveEdit} 
+                    disabled={isSavingEdit}
+                    className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {isSavingEdit ? 'A gravar...' : 'Guardar Alterações'}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setSelectedSession(null)} className="w-full py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg">Fechar</button>
               )}
             </div>
-            <button onClick={() => setSelectedSession(null)} className="w-full py-4 bg-petrol-900 text-white font-bold rounded-2xl mt-8 hover:bg-petrol-950 transition-all shadow-lg">Concluído</button>
           </div>
         </div>
       )}
@@ -531,7 +538,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <h3 className="text-xl font-bold text-petrol-900 text-center mb-6">Remover Histórico</h3>
             <div className="space-y-3">
               <button onClick={() => handleDeleteSession('me')} className="w-full py-4 bg-slate-100 font-bold rounded-2xl">Esconder de mim</button>
-              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20">Apagar para todos</button>
+              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl shadow-lg">Apagar para todos</button>
               <button onClick={() => setDeletingSession(null)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
             </div>
           </div>
