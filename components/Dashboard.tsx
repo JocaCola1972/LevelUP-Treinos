@@ -35,7 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   };
 
   /**
-   * GERADOR DE AGENDA PARA ADMIN (14 DIAS)
+   * GERADOR DE AGENDA PARA ADMIN (7 DIAS / PRÓXIMA SEMANA)
    */
   const adminSchedule = useMemo(() => {
     if (!isAdmin) return [];
@@ -53,32 +53,31 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       const [h, m] = shift.startTime.split(':').map(Number);
       const shiftMinutes = (h * 60) + m;
 
-      // Verificar ocorrências para Semana 0, Semana 1 e talvez Semana 2
-      [0, 1, 2].forEach(weekOffset => {
+      // Verificar ocorrências para Semana Atual (0) e Próxima Semana (1)
+      [0, 1].forEach(weekOffset => {
         // Se for semana 0 e o dia/hora já passou, ignora
         if (weekOffset === 0 && (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes))) {
           return;
         }
 
-        // Lógica de Recorrência Quinzenal (simplificada: assume que a data de início define a paridade se disponível)
+        // Lógica de Recorrência Quinzenal
         if (shift.recurrence === RecurrenceType.QUINZENAL) {
-            // Se houver data de início, calculamos a paridade de semanas
             if (shift.startDate) {
                 const start = new Date(shift.startDate);
                 const occDate = new Date(getOccurrenceDate(shift.dayOfWeek, weekOffset));
                 const diffTime = Math.abs(occDate.getTime() - start.getTime());
                 const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                if (diffWeeks % 2 !== 0) return; // Só semanas pares desde o início
+                if (diffWeeks % 2 !== 0) return;
             } else if (weekOffset === 1) {
-                return; // Por defeito na quinzenal sem data, assume semana sim, semana não (pula a 1)
+                return;
             }
         }
 
         const dateStr = getOccurrenceDate(shift.dayOfWeek, weekOffset);
         
-        // Se já passaram 14 dias do range total, ignora
+        // Limite estrito de 7 dias (próxima semana)
         const diffDays = (new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays > 14) return;
+        if (diffDays > 7) return;
 
         // Se já está no histórico como concluído, não mostra na agenda futura
         const isDone = state.sessions.some(s => s.shiftId === shift.id && s.date.startsWith(dateStr) && s.completed);
@@ -192,17 +191,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
         <div className="absolute top-0 right-0 w-32 h-32 bg-padelgreen-400/10 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
         <div className="relative z-10">
           <h2 className="text-2xl md:text-3xl font-black text-petrol-900 mb-2">Olá, {state.currentUser?.name}! 👋</h2>
-          <p className="text-slate-500 font-medium">{isAdmin ? 'Gestão global do clube para as próximas 2 semanas.' : 'Bom tê-lo de volta ao PadelPro.'}</p>
+          <p className="text-slate-500 font-medium">{isAdmin ? 'Gestão global do clube para a próxima semana.' : 'Bom tê-lo de volta ao PadelPro.'}</p>
         </div>
       </div>
 
-      {/* ADMIN VIEW: GLOBAL 14-DAY SCHEDULE */}
+      {/* ADMIN VIEW: GLOBAL 7-DAY SCHEDULE */}
       {isAdmin ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-lg font-black text-petrol-900 uppercase tracking-tight flex items-center gap-2">
               <span className="w-2 h-2 bg-padelgreen-500 rounded-full animate-pulse"></span>
-              Agenda Global (Próximos 14 dias)
+              Agenda Global (Próxima Semana)
             </h3>
             <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{adminSchedule.length} Aulas planeadas</span>
           </div>
@@ -251,7 +250,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           
           {adminSchedule.length === 0 && (
             <div className="bg-white rounded-[32px] p-16 text-center border border-slate-200">
-                <p className="text-slate-400 font-medium">Não existem aulas programadas para as próximas 2 semanas.</p>
+                <p className="text-slate-400 font-medium">Não existem aulas programadas para a próxima semana.</p>
             </div>
           )}
         </div>
