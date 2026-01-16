@@ -24,7 +24,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
   const activeSession = state.sessions.find(s => s.isActive);
 
-  // Sincronizar o buffer de edição quando uma sessão é selecionada
   useEffect(() => {
     if (selectedSession) {
       setEditBuffer({ ...selectedSession });
@@ -62,11 +61,28 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     if (!editBuffer) return;
     setIsSavingEdit(true);
     try {
-      await db.sessions.save(editBuffer);
+      // Garantir que campos opcionais vazios sejam null para o Supabase
+      const cleanSession = {
+        ...editBuffer,
+        turmaName: editBuffer.turmaName || null,
+        coachId: editBuffer.coachId || null,
+        notes: editBuffer.notes || null,
+        youtubeUrl: editBuffer.youtubeUrl || null,
+        aiInsights: editBuffer.aiInsights || null
+      };
+
+      await db.sessions.save(cleanSession);
       refresh();
       setSelectedSession(null);
-    } catch (err) {
-      alert("Erro ao guardar alterações.");
+    } catch (err: any) {
+      console.error("Erro detalhado ao guardar sessão:", err);
+      const errorDetail = err?.message || err?.details || "Erro de ligação ou permissões na base de dados.";
+      
+      if (errorDetail.includes('column') && (errorDetail.includes('turmaName') || errorDetail.includes('coachId'))) {
+        alert("ERRO DE ESTRUTURA: A base de dados não tem as novas colunas. Por favor, execute o SQL de Reparação no Supabase.");
+      } else {
+        alert(`Não foi possível guardar: ${errorDetail}`);
+      }
     } finally {
       setIsSavingEdit(false);
     }
@@ -123,14 +139,13 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
       await db.sessions.save(newPastSession);
       refresh();
       setIsPastModalOpen(false);
-    } catch (err) {
-      alert("Erro ao registar treino passado.");
+    } catch (err: any) {
+      alert(`Erro ao registar: ${err.message || 'Erro de rede.'}`);
     } finally {
       setIsSavingPast(false);
     }
   };
 
-  // Funções Auxiliares para o Buffer de Edição
   const updateBufferField = (field: keyof TrainingSession, value: any) => {
     if (!editBuffer) return;
     setEditBuffer({ ...editBuffer, [field]: value });
@@ -139,8 +154,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const updateBufferDateTime = (type: 'date' | 'time', value: string) => {
     if (!editBuffer) return;
     const current = new Date(editBuffer.date);
-    let datePart = current.toISOString().split('T')[0];
-    let timePart = current.toTimeString().split(' ')[0].slice(0, 5);
+    let datePart = isNaN(current.getTime()) ? new Date().toISOString().split('T')[0] : current.toISOString().split('T')[0];
+    let timePart = isNaN(current.getTime()) ? "18:00" : current.toTimeString().split(' ')[0].slice(0, 5);
 
     if (type === 'date') datePart = value;
     if (type === 'time') timePart = value;
@@ -160,7 +175,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     setEditBuffer({ ...editBuffer, attendeeIds: newAttendees });
   };
 
-  // Filtragem e Ordenação Decrescente
   const historicalSessions = state.sessions.filter(s => {
     if (s.isActive || !s.completed) return false;
     if ((s.hiddenForUserIds || []).includes(userId || '')) return false;

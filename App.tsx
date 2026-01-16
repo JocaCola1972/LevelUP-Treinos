@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   "startDate" TEXT
 );
 
--- 3. Garantir tabela de sessões/treinos com novas colunas
+-- 3. Garantir tabela de sessões/treinos
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   "shiftId" TEXT NOT NULL,
@@ -155,13 +155,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   "coachId" TEXT
 );
 
--- Adicionar colunas se não existirem (para quem já tem a tabela)
+-- Adicionar colunas se não existirem (Deteção robusta)
 DO $$ 
 BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND column_name='turmaName') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND LOWER(column_name)='turmaname') THEN
         ALTER TABLE sessions ADD COLUMN "turmaName" TEXT;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND column_name='coachId') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sessions' AND LOWER(column_name)='coachid') THEN
         ALTER TABLE sessions ADD COLUMN "coachId" TEXT;
     END IF;
 END $$;
