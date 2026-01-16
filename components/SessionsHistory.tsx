@@ -13,6 +13,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const [deletingSession, setDeletingSession] = useState<TrainingSession | null>(null);
   const [isPastModalOpen, setIsPastModalOpen] = useState(false);
   const [isSavingPast, setIsSavingPast] = useState(false);
+  const [isEditingSession, setIsEditingSession] = useState(false);
 
   const activeSession = state.sessions.find(s => s.isActive);
   const userRole = state.currentUser?.role;
@@ -69,15 +70,19 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     const formData = new FormData(e.currentTarget);
     
     const shiftId = formData.get('shiftId') as string;
-    const date = formData.get('date') as string;
+    const dateStr = formData.get('date') as string;
+    const timeStr = formData.get('time') as string;
     const attendeeIds = Array.from(formData.getAll('attendeeIds')) as string[];
     const notes = formData.get('notes') as string;
     const youtubeUrl = formData.get('youtubeUrl') as string;
 
+    // Criar data ISO combinando data e hora
+    const combinedDate = new Date(`${dateStr}T${timeStr}`);
+
     const newPastSession: TrainingSession = {
       id: `past_${Math.random().toString(36).substr(2, 9)}`,
       shiftId,
-      date: new Date(date).toISOString(),
+      date: combinedDate.toISOString(),
       isActive: false,
       completed: true,
       attendeeIds,
@@ -95,6 +100,39 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     } finally {
       setIsSavingPast(false);
     }
+  };
+
+  const handleUpdateAttendee = async (studentId: string, checked: boolean) => {
+    if (!selectedSession || !isAdmin) return;
+    
+    let newAttendees = [...selectedSession.attendeeIds];
+    if (checked) {
+      if (!newAttendees.includes(studentId)) newAttendees.push(studentId);
+    } else {
+      newAttendees = newAttendees.filter(id => id !== studentId);
+    }
+    
+    const updated = { ...selectedSession, attendeeIds: newAttendees };
+    setSelectedSession(updated);
+    await db.sessions.save(updated);
+    refresh();
+  };
+
+  const handleUpdateSessionDateTime = async (type: 'date' | 'time', value: string) => {
+    if (!selectedSession || !isAdmin) return;
+    
+    const currentFullDate = new Date(selectedSession.date);
+    let newDateStr = currentFullDate.toISOString().split('T')[0];
+    let newTimeStr = currentFullDate.toTimeString().split(' ')[0].slice(0, 5);
+    
+    if (type === 'date') newDateStr = value;
+    if (type === 'time') newTimeStr = value;
+    
+    const newCombinedDate = new Date(`${newDateStr}T${newTimeStr}`);
+    const updated = { ...selectedSession, date: newCombinedDate.toISOString() };
+    setSelectedSession(updated);
+    await db.sessions.save(updated);
+    refresh();
   };
 
   // Filtragem e Ordenação Decrescente
@@ -132,7 +170,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
               </div>
             </div>
             <div className="flex gap-3 w-full md:w-auto">
-              <button onClick={() => setSelectedSession(activeSession)} className="flex-1 md:flex-none px-6 py-3 bg-white text-petrol-900 border border-petrol-200 rounded-2xl font-bold transition-all active:scale-95">Ver Detalhes</button>
+              <button onClick={() => { setSelectedSession(activeSession); setIsEditingSession(false); }} className="flex-1 md:flex-none px-6 py-3 bg-white text-petrol-900 border border-petrol-200 rounded-2xl font-bold transition-all active:scale-95">Ver Detalhes</button>
               {isAdmin && <button onClick={() => handleFinishSession(activeSession)} className="flex-1 md:flex-none px-8 py-3 bg-petrol-900 text-white rounded-2xl font-bold hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Finalizar</button>}
             </div>
           </div>
@@ -185,7 +223,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   {isAdmin && (
                     <button onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }} className="absolute top-3 right-3 p-1.5 bg-red-50 text-red-400 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10 text-xs">🗑️</button>
                   )}
-                  <div onClick={() => setSelectedSession(session)} className="cursor-pointer flex-1 flex flex-col">
+                  <div onClick={() => { setSelectedSession(session); setIsEditingSession(false); }} className="cursor-pointer flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-3 pr-6">
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{sessionDate.toLocaleDateString('pt-PT', { weekday: 'short' })}</span>
@@ -198,7 +236,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     </div>
                     
                     <div className="mb-3 text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                      <span>🕒</span> {shift?.startTime}
+                      <span>🕒</span> {sessionDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
                     </div>
 
                     <p className="text-[11px] text-slate-400 line-clamp-2 mb-4 italic leading-relaxed h-8">
@@ -251,18 +289,27 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6">Registar Treino Retroativo</h3>
             <form onSubmit={handleSavePastSession} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Horário</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Turma</label>
                   <select name="shiftId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm">
-                    {state.shifts.map(sh => (
-                      <option key={sh.id} value={sh.id}>{sh.dayOfWeek} às {sh.startTime}</option>
-                    ))}
+                    {state.shifts.map(sh => {
+                      const coach = state.users.find(u => u.id === sh.coachId);
+                      return (
+                        <option key={sh.id} value={sh.id}>
+                          {sh.dayOfWeek} ({sh.startTime}) - {coach?.name || 'Sem Treinador'}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
                   <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Hora Exata</label>
+                  <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
                 </div>
               </div>
               <div>
@@ -295,33 +342,100 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
           <div className="bg-white rounded-t-[32px] md:rounded-3xl w-full max-w-2xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">Detalhes do Treino</h3>
+              <h3 className="text-xl md:text-2xl font-bold text-petrol-900">
+                {isAdmin ? 'Editar Histórico' : 'Detalhes do Treino'}
+              </h3>
               <button onClick={() => setSelectedSession(null)} className="hidden md:block text-slate-400 hover:text-slate-600 text-3xl">×</button>
             </div>
+            
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Data do Treino</p>
-                  <p className="text-sm font-semibold">{new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Data e Hora do Treino</p>
+                  {isAdmin ? (
+                    <div className="flex gap-2">
+                      <input 
+                        type="date" 
+                        defaultValue={new Date(selectedSession.date).toISOString().split('T')[0]} 
+                        onChange={(e) => handleUpdateSessionDateTime('date', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
+                      />
+                      <input 
+                        type="time" 
+                        defaultValue={new Date(selectedSession.date).toTimeString().split(' ')[0].slice(0, 5)} 
+                        onChange={(e) => handleUpdateSessionDateTime('time', e.target.value)}
+                        className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm font-semibold">
+                      {new Date(selectedSession.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(selectedSession.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Presenças</p>
-                  <p className="text-sm font-semibold">{selectedSession.attendeeIds.length} Alunos</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Estado da Sessão</p>
+                  <p className="text-sm font-semibold text-green-600 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> Concluída e Arquivada
+                  </p>
                 </div>
+              </div>
+
+              {/* Alunos Presentes - Editável para Admin */}
+              <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Alunos Presentes ({selectedSession.attendeeIds.length})</h4>
+                {isAdmin ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 max-h-48 overflow-y-auto">
+                    {state.users.filter(u => u.role === Role.STUDENT).map(student => (
+                      <label key={student.id} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:border-padelgreen-200 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedSession.attendeeIds.includes(student.id)} 
+                          onChange={(e) => handleUpdateAttendee(student.id, e.target.checked)}
+                          className="w-4 h-4 text-padelgreen-500 rounded" 
+                        />
+                        <span className="text-[11px] font-medium truncate">{student.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSession.attendeeIds.map(id => {
+                      const student = state.users.find(u => u.id === id);
+                      return (
+                        <div key={id} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                          <img src={student?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                          <span className="text-xs font-semibold text-slate-700">{student?.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               
               <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Notas do Treinador</h4>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Notas Técnicas</h4>
                 {isStaff ? (
-                  <textarea defaultValue={selectedSession.notes} onBlur={async (e) => { const updated = { ...selectedSession, notes: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32" />
+                  <textarea 
+                    defaultValue={selectedSession.notes} 
+                    onBlur={async (e) => { 
+                      const updated = { ...selectedSession, notes: e.target.value }; 
+                      setSelectedSession(updated);
+                      await db.sessions.save(updated); 
+                      refresh(); 
+                    }} 
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32" 
+                  />
                 ) : (
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm">{selectedSession.notes || "Sem notas."}</div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-slate-600 text-sm leading-relaxed italic">
+                    {selectedSession.notes ? `"${selectedSession.notes}"` : "Sem notas registadas."}
+                  </div>
                 )}
               </div>
 
               {selectedSession.youtubeUrl && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Análise de Vídeo</h4>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Análise de Vídeo</h4>
                   <a 
                     href={selectedSession.youtubeUrl} 
                     target="_blank" 
@@ -333,14 +447,25 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                 </div>
               )}
               
-              {isStaff && !selectedSession.youtubeUrl && (
+              {isStaff && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Adicionar Vídeo (Link YouTube)</h4>
-                  <input type="url" placeholder="https://..." onBlur={async (e) => { const updated = { ...selectedSession, youtubeUrl: e.target.value }; await db.sessions.save(updated); refresh(); }} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm" />
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Link da Gravação (YouTube)</h4>
+                  <input 
+                    type="url" 
+                    placeholder="https://..." 
+                    defaultValue={selectedSession.youtubeUrl}
+                    onBlur={async (e) => { 
+                      const updated = { ...selectedSession, youtubeUrl: e.target.value }; 
+                      setSelectedSession(updated);
+                      await db.sessions.save(updated); 
+                      refresh(); 
+                    }} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" 
+                  />
                 </div>
               )}
             </div>
-            <button onClick={() => setSelectedSession(null)} className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl mt-8">Fechar</button>
+            <button onClick={() => setSelectedSession(null)} className="w-full py-4 bg-petrol-900 text-white font-bold rounded-2xl mt-8 hover:bg-petrol-950 transition-all shadow-lg">Concluído</button>
           </div>
         </div>
       )}
@@ -352,7 +477,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <h3 className="text-xl font-bold text-petrol-900 text-center mb-6">Remover Histórico</h3>
             <div className="space-y-3">
               <button onClick={() => handleDeleteSession('me')} className="w-full py-4 bg-slate-100 font-bold rounded-2xl">Esconder de mim</button>
-              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl">Apagar para todos</button>
+              <button onClick={() => handleDeleteSession('all')} className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20">Apagar para todos</button>
               <button onClick={() => setDeletingSession(null)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
             </div>
           </div>
