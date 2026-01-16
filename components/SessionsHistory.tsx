@@ -167,7 +167,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         )}
       </div>
 
-      {/* History Grid */}
+      {/* History Grid - Optimized for density */}
       <div className="space-y-4">
         <div className="flex items-center justify-between ml-2">
           <h3 className="text-lg font-bold text-petrol-900">Histórico de Treinos</h3>
@@ -175,49 +175,61 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         </div>
         
         {historicalSessions.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4">
             {historicalSessions.map(session => {
               const shift = state.shifts.find(s => s.id === session.shiftId);
               const sessionDate = new Date(session.date);
               
               return (
-                <div key={session.id} className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-lg transition-all group/card flex flex-col">
+                <div key={session.id} className="bg-white p-4 rounded-2xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-md transition-all group/card flex flex-col">
                   {isAdmin && (
-                    <button onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }} className="absolute top-4 right-4 p-2 bg-red-50 text-red-400 rounded-xl opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10">🗑️</button>
+                    <button onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }} className="absolute top-3 right-3 p-1.5 bg-red-50 text-red-400 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10 text-xs">🗑️</button>
                   )}
                   <div onClick={() => setSelectedSession(session)} className="cursor-pointer flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-4 pr-8">
+                    <div className="flex justify-between items-start mb-3 pr-6">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{sessionDate.toLocaleDateString('pt-PT', { weekday: 'long' })}</span>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-black text-petrol-950 leading-none">{sessionDate.getDate()}</span>
-                          <span className="text-sm font-bold text-petrol-700 capitalize">de {sessionDate.toLocaleDateString('pt-PT', { month: 'long' })}</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{sessionDate.toLocaleDateString('pt-PT', { weekday: 'short' })}</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-black text-petrol-950 leading-none">{sessionDate.getDate()}</span>
+                          <span className="text-[11px] font-bold text-petrol-700 capitalize">{sessionDate.toLocaleDateString('pt-PT', { month: 'short' })}</span>
                         </div>
                       </div>
-                      <span className="text-[9px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">CONCLUÍDO</span>
+                      <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-100">OK</span>
                     </div>
-                    <div className="mb-4 text-sm font-bold text-slate-500 flex items-center gap-1.5">🕒 {shift?.startTime}</div>
-                    <p className="text-xs md:text-sm text-slate-400 line-clamp-2 mb-6 italic leading-relaxed">{session.notes ? `"${session.notes}"` : "Sem observações registadas."}</p>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                      <div className="flex -space-x-2">
-                        {session.attendeeIds.slice(0, 4).map(id => (
-                          <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-white bg-slate-100" alt="" />
+                    
+                    <div className="mb-3 text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                      <span>🕒</span> {shift?.startTime}
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 line-clamp-2 mb-4 italic leading-relaxed h-8">
+                      {session.notes ? `"${session.notes}"` : "Sem notas."}
+                    </p>
+
+                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-50">
+                      <div className="flex -space-x-1.5">
+                        {session.attendeeIds.slice(0, 3).map(id => (
+                          <img key={id} src={state.users.find(u => u.id === id)?.avatar} className="w-6 h-6 rounded-full border-2 border-white bg-slate-100" alt="" />
                         ))}
+                        {session.attendeeIds.length > 3 && (
+                          <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-400">
+                            +{session.attendeeIds.length - 3}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         {session.youtubeUrl && (
                           <a 
                             href={session.youtubeUrl}
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                            title="Abrir Vídeo Original"
+                            className="w-7 h-7 flex items-center justify-center bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                            title="Abrir Vídeo"
                           >
-                            ▶️
+                            <span className="text-[10px]">▶️</span>
                           </a>
                         )}
-                        <span className="text-slate-300 text-sm flex items-center ml-1">→</span>
+                        <span className="text-slate-300 text-xs flex items-center">→</span>
                       </div>
                     </div>
                   </div>
