@@ -15,7 +15,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
-    { id: 'sessions', label: 'Treinos', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
 

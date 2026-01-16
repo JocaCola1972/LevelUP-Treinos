@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, Shift, RecurrenceType, Role, User } from '../types';
 import { db } from '../services/db';
 import { DAYS_OF_WEEK } from '../constants';
@@ -33,6 +33,22 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const coaches = state.users.filter(u => u.role === Role.COACH);
   const students = state.users.filter(u => u.role === Role.STUDENT);
 
+  // Função para converter o dia da semana do Date() para o formato da app
+  const getDayStringFromDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    return days[date.getDay()];
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateValue = e.target.value;
+    setSelectedDate(dateValue);
+    if (dateValue) {
+      const dayName = getDayStringFromDate(dateValue);
+      setSelectedDay(dayName);
+    }
+  };
+
   const getNextOccurrenceDate = (dayOfWeek: string) => {
     const dayMap: Record<string, number> = {
       'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
@@ -64,9 +80,10 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     setIsModalOpen(false);
   };
 
-  // Fix: Added key?: React.Key to props type to resolve TS error when calling the component in JSX with a key.
-  const StudentRSVPBadge = ({ student, shiftId }: { student: User, shiftId: string, key?: React.Key }) => {
-    const nextDate = getNextOccurrenceDate(state.shifts.find(s => s.id === shiftId)?.dayOfWeek || 'Segunda');
+  // Fix: Added React.FC type to StudentRSVPBadge to correctly handle 'key' prop when used inside a mapped list.
+  const StudentRSVPBadge: React.FC<{ student: User; shiftId: string }> = ({ student, shiftId }) => {
+    const shift = state.shifts.find(s => s.id === shiftId);
+    const nextDate = getNextOccurrenceDate(shift?.dayOfWeek || 'Segunda');
     const rsvp = state.rsvps.find(r => r.shiftId === shiftId && r.userId === student.id && r.date === nextDate);
 
     if (!rsvp) return (
@@ -159,6 +176,19 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden"></div>
             <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6 text-center sm:text-left">Configurar Horário</h3>
             <form onSubmit={handleSave} className="space-y-4 pb-8 sm:pb-0">
+              
+              <div className="bg-petrol-50 p-4 rounded-2xl border border-petrol-100 mb-6">
+                <label className="block text-xs font-black text-petrol-700 mb-2 uppercase tracking-wider">Data de Início (Calendário)</label>
+                <input 
+                  type="date" 
+                  name="startDate"
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  className="w-full px-4 py-3 bg-white border border-petrol-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all font-medium text-petrol-900" 
+                />
+                <p className="text-[10px] text-petrol-500 mt-2 italic">Selecionar a data preenche automaticamente o dia da semana abaixo.</p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
@@ -180,6 +210,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   </select>
                 </div>
               </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Hora Início</label>
@@ -190,12 +221,14 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   <input type="number" name="duration" defaultValue={editingShift?.durationMinutes || 60} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all" />
                 </div>
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Treinador Responsável</label>
                 <select name="coachId" defaultValue={editingShift?.coachId} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
                   {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Alunos Inscritos</label>
                 <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
@@ -213,9 +246,10 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   ))}
                 </div>
               </div>
+
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-2xl transition-all">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Guardar Alterações</button>
+                <button type="submit" className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl hover:bg-petrol-950 transition-all shadow-lg active:scale-95">Guardar Horário</button>
               </div>
             </form>
           </div>

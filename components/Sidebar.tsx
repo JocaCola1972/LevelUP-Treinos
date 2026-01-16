@@ -13,7 +13,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogo
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Horários', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
-    { id: 'sessions', label: 'Sessões', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'users', label: 'Utilizadores', icon: '👥', roles: [Role.ADMIN] },
   ];
 
