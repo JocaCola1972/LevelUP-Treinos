@@ -43,6 +43,8 @@ export interface TrainingSession {
   notes?: string;
   aiInsights?: string;
   hiddenForUserIds?: string[];
+  turmaName?: string;
+  coachId?: string;
 }
 
 export interface ShiftRSVP {

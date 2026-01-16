@@ -21,6 +21,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const isAdmin = userRole === Role.ADMIN;
   const isStaff = userRole === Role.ADMIN || userRole === Role.COACH;
 
+  const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
+
   const handleStartSession = async (shiftId: string) => {
     const newSession: TrainingSession = {
       id: Math.random().toString(36).substr(2, 9),
@@ -69,19 +71,21 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     setIsSavingPast(true);
     const formData = new FormData(e.currentTarget);
     
-    const shiftId = formData.get('shiftId') as string;
+    const turmaName = formData.get('turmaName') as string;
+    const coachId = formData.get('coachId') as string;
     const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     const attendeeIds = Array.from(formData.getAll('attendeeIds')) as string[];
     const notes = formData.get('notes') as string;
     const youtubeUrl = formData.get('youtubeUrl') as string;
 
-    // Criar data ISO combinando data e hora
     const combinedDate = new Date(`${dateStr}T${timeStr}`);
 
     const newPastSession: TrainingSession = {
       id: `past_${Math.random().toString(36).substr(2, 9)}`,
-      shiftId,
+      shiftId: 'manual_entry',
+      turmaName,
+      coachId,
       date: combinedDate.toISOString(),
       isActive: false,
       completed: true,
@@ -135,13 +139,21 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     refresh();
   };
 
+  const handleUpdateField = async (field: keyof TrainingSession, value: any) => {
+    if (!selectedSession || !isAdmin) return;
+    const updated = { ...selectedSession, [field]: value };
+    setSelectedSession(updated);
+    await db.sessions.save(updated);
+    refresh();
+  };
+
   // Filtragem e Ordenação Decrescente
   const historicalSessions = state.sessions.filter(s => {
     if (s.isActive || !s.completed) return false;
     if ((s.hiddenForUserIds || []).includes(userId || '')) return false;
     if (userRole === Role.ADMIN) return true;
     const shift = state.shifts.find(sh => sh.id === s.shiftId);
-    if (userRole === Role.COACH) return shift?.coachId === userId;
+    if (userRole === Role.COACH) return (s.coachId === userId || shift?.coachId === userId);
     if (userRole === Role.STUDENT) return s.attendeeIds.includes(userId || '');
     return false;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -217,6 +229,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             {historicalSessions.map(session => {
               const shift = state.shifts.find(s => s.id === session.shiftId);
               const sessionDate = new Date(session.date);
+              const coach = state.users.find(u => u.id === (session.coachId || shift?.coachId));
+              const displayTurma = session.turmaName || (shift ? `${shift.dayOfWeek} (${shift.startTime})` : 'Treino Manual');
               
               return (
                 <div key={session.id} className="bg-white p-4 rounded-2xl border border-slate-200 relative hover:border-padelgreen-400 hover:shadow-md transition-all group/card flex flex-col">
@@ -224,9 +238,9 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     <button onClick={(e) => { e.stopPropagation(); setDeletingSession(session); }} className="absolute top-3 right-3 p-1.5 bg-red-50 text-red-400 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 z-10 text-xs">🗑️</button>
                   )}
                   <div onClick={() => { setSelectedSession(session); setIsEditingSession(false); }} className="cursor-pointer flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-3 pr-6">
+                    <div className="flex justify-between items-start mb-2 pr-6">
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{sessionDate.toLocaleDateString('pt-PT', { weekday: 'short' })}</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 truncate max-w-[100px]">{displayTurma}</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-xl font-black text-petrol-950 leading-none">{sessionDate.getDate()}</span>
                           <span className="text-[11px] font-bold text-petrol-700 capitalize">{sessionDate.toLocaleDateString('pt-PT', { month: 'short' })}</span>
@@ -235,8 +249,14 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                       <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-100">OK</span>
                     </div>
                     
-                    <div className="mb-3 text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                      <span>🕒</span> {sessionDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                    <div className="mb-3 text-[10px] font-bold text-slate-500 flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <span>🕒</span> {sessionDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-60">
+                        <img src={coach?.avatar} className="w-4 h-4 rounded-full" alt="" />
+                        <span className="text-[8px] truncate max-w-[60px]">{coach?.name.split(' ')[0]}</span>
+                      </div>
                     </div>
 
                     <p className="text-[11px] text-slate-400 line-clamp-2 mb-4 italic leading-relaxed h-8">
@@ -289,20 +309,26 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden"></div>
             <h3 className="text-xl md:text-2xl font-bold text-petrol-900 mb-6">Registar Treino Retroativo</h3>
             <form onSubmit={handleSavePastSession} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Turma</label>
-                  <select name="shiftId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm">
-                    {state.shifts.map(sh => {
-                      const coach = state.users.find(u => u.id === sh.coachId);
-                      return (
-                        <option key={sh.id} value={sh.id}>
-                          {sh.dayOfWeek} ({sh.startTime}) - {coach?.name || 'Sem Treinador'}
-                        </option>
-                      );
-                    })}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Nome da Turma / Identificação</label>
+                  <input 
+                    name="turmaName" 
+                    type="text" 
+                    required 
+                    placeholder="Ex: Turma Manhã, Clínica Padel..." 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Treinador</label>
+                  <select name="coachId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all text-sm">
+                    {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
                   <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
@@ -312,6 +338,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                   <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 text-sm" />
                 </div>
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Alunos Presentes</label>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
@@ -349,6 +376,43 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             </div>
             
             <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Identificação do Treino / Turma</p>
+                  {isAdmin ? (
+                    <input 
+                      type="text" 
+                      defaultValue={selectedSession.turmaName || ''} 
+                      placeholder="Nome da Turma"
+                      onBlur={(e) => handleUpdateField('turmaName', e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
+                    />
+                  ) : (
+                    <p className="text-sm font-semibold">{selectedSession.turmaName || 'Treino Regular'}</p>
+                  )}
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Treinador Responsável</p>
+                  {isAdmin ? (
+                    <select 
+                      defaultValue={selectedSession.coachId || ''} 
+                      onChange={(e) => handleUpdateField('coachId', e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
+                    >
+                      <option value="">(Usar Treinador da Agenda)</option>
+                      {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <img src={state.users.find(u => u.id === (selectedSession.coachId || state.shifts.find(sh => sh.id === selectedSession.shiftId)?.coachId))?.avatar} className="w-5 h-5 rounded-full" alt="" />
+                      <p className="text-sm font-semibold">
+                        {state.users.find(u => u.id === (selectedSession.coachId || state.shifts.find(sh => sh.id === selectedSession.shiftId)?.coachId))?.name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Data e Hora do Treino</p>
@@ -418,12 +482,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                 {isStaff ? (
                   <textarea 
                     defaultValue={selectedSession.notes} 
-                    onBlur={async (e) => { 
-                      const updated = { ...selectedSession, notes: e.target.value }; 
-                      setSelectedSession(updated);
-                      await db.sessions.save(updated); 
-                      refresh(); 
-                    }} 
+                    onBlur={async (e) => handleUpdateField('notes', e.target.value)} 
                     className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none h-32" 
                   />
                 ) : (
@@ -454,12 +513,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     type="url" 
                     placeholder="https://..." 
                     defaultValue={selectedSession.youtubeUrl}
-                    onBlur={async (e) => { 
-                      const updated = { ...selectedSession, youtubeUrl: e.target.value }; 
-                      setSelectedSession(updated);
-                      await db.sessions.save(updated); 
-                      refresh(); 
-                    }} 
+                    onBlur={async (e) => handleUpdateField('youtubeUrl', e.target.value)} 
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-padelgreen-400 outline-none transition-all" 
                   />
                 </div>
