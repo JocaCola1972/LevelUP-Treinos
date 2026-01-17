@@ -55,16 +55,28 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
       // Verificar ocorrências para Semana Atual (0) e Próxima Semana (1)
       [0, 1].forEach(weekOffset => {
-        // Se for semana 0 e o dia/hora já passou, ignora
-        if (weekOffset === 0 && (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes))) {
+        const dateStr = getOccurrenceDate(shift.dayOfWeek, weekOffset);
+        
+        // Verifica se já existe uma sessão para esta data/horário
+        const existingSession = state.sessions.find(s => s.shiftId === shift.id && s.date.startsWith(dateStr));
+
+        // Se a sessão já foi finalizada pelo Admin, ela DEVE deixar de constar no painel de Início
+        if (existingSession && existingSession.completed) {
           return;
+        }
+
+        // Se for semana 0 e o dia/hora já passou, ignora (a menos que esteja ativo)
+        if (weekOffset === 0 && (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes))) {
+          if (!existingSession || !existingSession.isActive) {
+            return;
+          }
         }
 
         // Lógica de Recorrência Quinzenal
         if (shift.recurrence === RecurrenceType.QUINZENAL) {
             if (shift.startDate) {
                 const start = new Date(shift.startDate);
-                const occDate = new Date(getOccurrenceDate(shift.dayOfWeek, weekOffset));
+                const occDate = new Date(dateStr);
                 const diffTime = Math.abs(occDate.getTime() - start.getTime());
                 const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
                 if (diffWeeks % 2 !== 0) return;
@@ -72,16 +84,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                 return;
             }
         }
-
-        const dateStr = getOccurrenceDate(shift.dayOfWeek, weekOffset);
         
         // Limite estrito de 7 dias (próxima semana)
         const diffDays = (new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
         if (diffDays > 7) return;
-
-        // Se já está no histórico como concluído, não mostra na agenda futura
-        const isDone = state.sessions.some(s => s.shiftId === shift.id && s.date.startsWith(dateStr) && s.completed);
-        if (isDone) return;
 
         schedule.push({
           ...shift,
@@ -124,11 +130,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       }
 
       let dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
-      const isAlreadyCompleted = state.sessions.some(s => s.shiftId === shift.id && s.date.startsWith(dateStr) && s.completed);
-
-      if (isAlreadyCompleted) {
-        offsetWeeks += (shift.recurrence === RecurrenceType.QUINZENAL ? 2 : 1);
-        dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
+      
+      // Loop para encontrar a próxima data válida que NÃO esteja completa ou ativa
+      // Se o admin finalizou o treino, 'completed' será true e saltamos para a próxima semana
+      let foundValid = false;
+      let safetyCounter = 0;
+      while (!foundValid && safetyCounter < 10) {
+        const session = state.sessions.find(s => s.shiftId === shift.id && s.date.startsWith(dateStr));
+        
+        if (session && (session.completed || session.isActive)) {
+          offsetWeeks += (shift.recurrence === RecurrenceType.QUINZENAL ? 2 : 1);
+          dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
+          safetyCounter++;
+        } else {
+          foundValid = true;
+        }
       }
 
       const finalWeight = (dayIdx * 24 * 60) + shiftMinutes + (offsetWeeks * 7 * 24 * 60);
