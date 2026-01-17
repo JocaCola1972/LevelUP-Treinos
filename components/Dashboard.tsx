@@ -132,7 +132,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       let dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
       
       // Loop para encontrar a próxima data válida que NÃO esteja completa ou ativa
-      // Se o admin finalizou o treino, 'completed' será true e saltamos para a próxima semana
       let foundValid = false;
       let safetyCounter = 0;
       while (!foundValid && safetyCounter < 10) {
@@ -205,9 +204,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       {/* Welcome Header */}
       <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-10 border border-slate-200 shadow-sm overflow-hidden relative group">
         <div className="absolute top-0 right-0 w-32 h-32 bg-padelgreen-400/10 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
-        <div className="relative z-10">
-          <h2 className="text-2xl md:text-3xl font-black text-petrol-900 mb-2">Olá, {state.currentUser?.name}! 👋</h2>
-          <p className="text-slate-500 font-medium">{isAdmin ? 'Gestão global do clube para a próxima semana.' : 'Bom tê-lo de volta ao PadelPro.'}</p>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black text-petrol-900 mb-2">Olá, {state.currentUser?.name}! 👋</h2>
+            <p className="text-slate-500 font-medium">{isAdmin ? 'Gestão global do clube para a próxima semana.' : 'Bom tê-lo de volta ao PadelPro.'}</p>
+          </div>
+          <button onClick={refresh} className="self-start md:self-center text-[10px] font-bold text-slate-400 hover:text-padelgreen-600 uppercase tracking-widest transition-colors flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+            🔄 Sincronizar
+          </button>
         </div>
       </div>
 
@@ -215,10 +219,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       {isAdmin ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h3 className="text-lg font-black text-petrol-900 uppercase tracking-tight flex items-center gap-2">
-              <span className="w-2 h-2 bg-padelgreen-500 rounded-full animate-pulse"></span>
-              Agenda Global (Próxima Semana)
-            </h3>
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-black text-petrol-900 uppercase tracking-tight flex items-center gap-2">
+                <span className="w-2 h-2 bg-padelgreen-500 rounded-full animate-pulse"></span>
+                Agenda Global (Próxima Semana)
+              </h3>
+              <button onClick={refresh} className="hidden sm:block text-[10px] font-bold text-slate-400 hover:text-padelgreen-500 uppercase tracking-widest transition-colors">🔄 Sincronizar</button>
+            </div>
             <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{adminSchedule.length} Aulas planeadas</span>
           </div>
 

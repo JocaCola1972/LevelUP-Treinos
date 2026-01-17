@@ -104,9 +104,12 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   return (
     <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-petrol-900">Agenda de Treinos</h2>
-          <p className="text-slate-500 text-xs md:text-sm">Consulte as presenças para a próxima sessão.</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-petrol-900">Agenda de Treinos</h2>
+            <p className="text-slate-500 text-xs md:text-sm">Consulte as presenças para a próxima sessão.</p>
+          </div>
+          <button onClick={refresh} className="text-[10px] font-bold text-slate-400 hover:text-padelgreen-500 uppercase tracking-widest transition-colors mt-1">🔄 Sincronizar</button>
         </div>
         {state.currentUser?.role === Role.ADMIN && (
           <button 
