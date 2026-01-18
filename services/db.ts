@@ -10,9 +10,23 @@ const ensureConfig = () => {
 
 const handleDbError = (error: any, context: string) => {
   console.error(`Database Error [${context}]:`, error);
-  // Extrai a mensagem de erro da estrutura do Supabase
-  const message = error?.message || error?.details || "Erro desconhecido na base de dados";
-  const code = error?.code ? ` (${error.code})` : "";
+  
+  let message = "Erro desconhecido na base de dados";
+  if (typeof error === 'string') {
+    message = error;
+  } else if (error?.message) {
+    message = error.message;
+  } else if (error?.details) {
+    message = error.details;
+  } else {
+    try {
+      message = JSON.stringify(error);
+    } catch (e) {
+      message = "Erro complexo na base de dados (ver consola)";
+    }
+  }
+
+  const code = error?.code ? ` [${error.code}]` : "";
   throw new Error(`${message}${code}`);
 };
 
@@ -28,8 +42,6 @@ export const db = {
           .maybeSingle();
         
         if (error) {
-          // 42P01: Postgres undefined_table
-          // PGRST205: PostgREST table not in schema cache
           if (error.code === '42P01' || error.code === 'PGRST205') {
             console.warn(`A tabela 'settings' ainda não foi criada no Supabase (${error.code}). Usando logo padrão.`);
             return null;
@@ -38,8 +50,7 @@ export const db = {
         }
         return data?.value || null;
       } catch (err) {
-        // Falha silenciosa para o logo: a app deve abrir mesmo sem tabela de settings
-        console.warn("Aviso: Falha ao procurar logo personalizado (tabela inexistente?):", err);
+        console.warn("Aviso: Falha ao procurar logo personalizado:", err);
         return null;
       }
     },
@@ -48,7 +59,7 @@ export const db = {
       const { error } = await supabase.from('settings').upsert({ key: 'app_logo', value: url });
       if (error) {
         if (error.code === 'PGRST205' || error.code === '42P01') {
-          throw new Error("A tabela 'settings' não existe na sua base de dados. Por favor, crie-a no SQL Editor do Supabase antes de tentar mudar o logo.");
+          throw new Error("A tabela 'settings' não existe na sua base de dados. Por favor, crie-a no SQL Editor do Supabase.");
         }
         handleDbError(error, "saveLogo");
       }

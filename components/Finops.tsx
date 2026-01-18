@@ -11,6 +11,7 @@ interface FinopsProps {
 const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
   const isAdminEspecial = state.currentUser?.phone === '917772010';
 
@@ -20,7 +21,6 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [state.sessions]);
 
-  // Estatísticas Globais Recalculadas
   const stats = useMemo(() => {
     let totalReceived = 0;
     let paidCount = 0;
@@ -44,6 +44,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
   const handleUpdatePayment = async (session: TrainingSession, userId: string, paid: boolean, amount: number) => {
     const actionId = `${session.id}-${userId}`;
     setSavingId(actionId);
+    setSchemaError(null);
     
     try {
       const updatedPayments = {
@@ -58,9 +59,14 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
 
       await db.sessions.save(updatedSession);
       refresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao atualizar pagamento:", err);
-      alert("Erro ao guardar o estado do pagamento.");
+      // Detetar erro de coluna em falta (PGRST204)
+      if (err.message?.includes('PGRST204') || err.message?.includes('payments')) {
+        setSchemaError("A coluna 'payments' não existe na tabela 'sessions'.");
+      } else {
+        alert(`Erro ao guardar: ${err.message}`);
+      }
     } finally {
       setSavingId(null);
     }
@@ -78,6 +84,31 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
 
   return (
     <div className="space-y-6 pb-20">
+      {/* Alerta de Erro de Schema */}
+      {schemaError && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-[32px] p-6 animate-in fade-in slide-in-from-top duration-500">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="text-red-800 font-black uppercase text-sm tracking-tight mb-2">Erro Crítico de Base de Dados</h3>
+              <p className="text-red-700 text-xs font-medium leading-relaxed mb-4">
+                A funcionalidade de pagamentos requer uma coluna adicional na sua tabela do Supabase. 
+                Por favor, execute o seguinte comando no <b>SQL Editor</b> do seu painel Supabase:
+              </p>
+              <div className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl font-mono text-[10px] break-all select-all shadow-inner">
+                ALTER TABLE sessions ADD COLUMN payments JSONB DEFAULT '&#123;&#125;'::jsonb;
+              </div>
+              <button 
+                onClick={() => setSchemaError(null)}
+                className="mt-4 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
+              >
+                Dispensar aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resumo Financeiro Global */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex items-center justify-between">
@@ -125,7 +156,6 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
             const date = new Date(session.date);
             const attendees = state.users.filter(u => session.attendeeIds.includes(u.id));
             
-            // Soma dinâmica: Apenas o que está como PAGO
             const sessionTotalPaid = Object.values(session.payments || {})
               .reduce((acc, p) => acc + (p.paid ? p.amount : 0), 0);
             
@@ -186,7 +216,6 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                             </div>
                           </div>
 
-                          {/* Checkbox / Toggle Button */}
                           <button
                             type="button"
                             onClick={() => handleUpdatePayment(session, student.id, !payment.paid, payment.amount)}
