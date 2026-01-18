@@ -137,17 +137,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     setEditBuffer({ ...editBuffer, [field]: value });
   };
 
-  const updateBufferDateTime = (type: 'date' | 'time', value: string) => {
-    if (!editBuffer) return;
-    const current = new Date(editBuffer.date);
-    let datePart = isNaN(current.getTime()) ? new Date().toISOString().split('T')[0] : current.toISOString().split('T')[0];
-    let timePart = isNaN(current.getTime()) ? "18:00" : current.toTimeString().split(' ')[0].slice(0, 5);
-    if (type === 'date') datePart = value;
-    if (type === 'time') timePart = value;
-    const combined = new Date(`${datePart}T${timePart}`);
-    setEditBuffer({ ...editBuffer, date: combined.toISOString() });
-  };
-
   const toggleBufferAttendee = (studentId: string, checked: boolean) => {
     if (!editBuffer) return;
     let newAttendees = [...editBuffer.attendeeIds];
@@ -174,7 +163,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
     const isAlreadyFinished = state.sessions.some(s => 
       s.shiftId === shift.id && s.completed
     );
-    // Mostrar treinos de hoje ou amanhã que ainda não foram feitos
     const shiftDate = shift.startDate || '';
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -185,7 +173,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* Quick Actions / Active Session */}
       <div className="flex flex-col md:flex-row gap-4">
         {activeSession ? (
           <div className="flex-1 bg-padelgreen-50 border-2 border-padelgreen-400 p-6 rounded-3xl shadow-lg shadow-padelgreen-400/10 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -264,6 +251,9 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate max-w-[120px] md:max-w-none">{displayTurma}</span>
+                        {session.youtubeUrl && (
+                          <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded font-black border border-red-100">▶️ VÍDEO</span>
+                        )}
                         <span className="text-[10px] text-slate-300 hidden sm:block">•</span>
                         <span className="text-[10px] font-bold text-slate-500 hidden sm:block">🕒 {sessionDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
@@ -341,6 +331,10 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                 </div>
               </div>
               <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Link do Vídeo (Opcional)</label>
+                <input name="youtubeUrl" type="url" placeholder="https://youtube.com/..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium" />
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Atletas Presentes</label>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   {state.users.filter(u => u.role === Role.STUDENT).map(student => (
@@ -374,6 +368,18 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             </div>
             
             <div className="space-y-6">
+              {/* Botão de Vídeo para Alunos */}
+              {!isStaff && editBuffer.youtubeUrl && (
+                <a 
+                  href={editBuffer.youtubeUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all active:scale-95"
+                >
+                  <span className="text-xl">▶️</span> Assistir à Gravação do Treino
+                </a>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Turma / Evento</p>
@@ -409,6 +415,23 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Link da Gravação (YouTube)</p>
+                {isStaff ? (
+                  <input 
+                    type="url" 
+                    value={editBuffer.youtubeUrl || ''} 
+                    placeholder="Cole aqui o link do vídeo..."
+                    onChange={(e) => updateBufferField('youtubeUrl', e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-padelgreen-400 text-red-600"
+                  />
+                ) : (
+                  <p className="text-xs font-medium text-slate-500 break-all">
+                    {editBuffer.youtubeUrl || "Nenhum vídeo disponível."}
+                  </p>
+                )}
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -486,7 +509,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {deletingSession && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-petrol-950/60 backdrop-blur-md">
           <div className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl">
