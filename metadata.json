@@ -1,6 +1,6 @@
 {
-  "name": "LevelUP Treinos #2",
-  "description": "A comprehensive Padel training management system with AI insights, session tracking, and role-based access control for students, coaches, and administrators.",
+  "name": "TREINOS LEVELUP",
+  "description": "Plataforma avançada de gestão de treinos de Padel com análise técnica e controlo de agenda.",
   "requestFramePermissions": [
     "camera",
     "microphone"

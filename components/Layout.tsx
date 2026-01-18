@@ -35,23 +35,27 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 md:pb-0">
         <header className="h-16 flex items-center justify-between px-4 md:px-8 bg-white border-b border-slate-200 shrink-0 z-20">
-          <div className="flex items-center gap-2 md:hidden">
-            <div className="w-8 h-8 bg-padelgreen-400 rounded-lg flex items-center justify-center text-petrol-950 font-black text-lg">
-              P
+          <div className="flex items-center gap-3 md:hidden">
+            <img 
+              src="logo.png" 
+              alt="Logo" 
+              className="w-10 h-10 object-contain"
+            />
+            <div className="leading-none">
+              <h1 className="text-[10px] font-black text-petrol-950 uppercase tracking-tighter">
+                TREINOS
+              </h1>
+              <h1 className="text-xs font-black text-padelgreen-600 uppercase tracking-tighter">
+                LEVELUP
+              </h1>
             </div>
-            <h1 className="text-lg font-bold text-petrol-900 truncate max-w-[120px]">
-              {currentView === 'dashboard' ? 'Início' : 
-               currentView === 'users' ? 'Pessoas' :
-               currentView === 'shifts' ? 'Agenda' : 
-               currentView === 'profile' ? 'O Meu Perfil' : 'Histórico'}
-            </h1>
           </div>
           
-          <h1 className="hidden md:block text-xl font-bold text-petrol-900">
+          <h1 className="hidden md:block text-xl font-bold text-petrol-900 uppercase tracking-tight">
             {currentView === 'dashboard' ? 'Painel de Controlo' : 
              currentView === 'users' ? 'Gestão de Utilizadores' :
              currentView === 'shifts' ? 'Agenda de Treinos' : 
-             currentView === 'profile' ? 'Edição de Perfil' : 'Histórico de Sessões'}
+             currentView === 'profile' ? 'O Meu Perfil' : 'Histórico de Sessões'}
           </h1>
 
           <div className="flex items-center gap-3">
@@ -61,7 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
             >
               <div className="text-right hidden sm:block">
                 <p className="text-xs font-bold text-petrol-900 leading-none">{user.name}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter">Editar Perfil</p>
+                <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter">Perfil</p>
               </div>
               <div className="relative">
                 <img src={user.avatar} className="w-8 h-8 rounded-full object-cover ring-2 ring-padelgreen-400 shadow-sm" alt="" />
@@ -94,11 +98,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
             key={item.id}
             onClick={() => onNavigate(item.id)}
             className={`flex flex-col items-center justify-center w-full h-full transition-all ${
-              currentView === item.id ? 'text-padelgreen-600' : 'text-slate-400'
+              currentView === item.id ? 'text-padelgreen-600 font-bold scale-110' : 'text-slate-400'
             }`}
           >
             <span className="text-xl mb-0.5">{item.icon}</span>
-            <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
+            <span className="text-[9px] uppercase font-bold tracking-tighter">{item.label}</span>
           </button>
         ))}
       </nav>

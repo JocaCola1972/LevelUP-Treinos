@@ -57,18 +57,24 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-padelgreen-400/5 rounded-full blur-[100px] -ml-48 -mb-48"></div>
       
       <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-padelgreen-400 rounded-2xl mx-auto flex items-center justify-center text-petrol-950 text-3xl font-black mb-4 shadow-xl shadow-padelgreen-400/20">
-            P
+        <div className="text-center mb-8">
+          <div className="mb-6 flex justify-center">
+            <img 
+              src="logo.png" 
+              alt="TREINOS LEVELUP Logo" 
+              className="w-56 h-56 object-contain drop-shadow-[0_10px_15px_rgba(255,255,255,0.1)] animate-in zoom-in duration-700"
+            />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">PADEL<span className="text-padelgreen-400">PRO</span></h1>
-          <p className="text-petrol-300 mt-2">Plataforma de Treino Avançado</p>
+          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
+            TREINOS <span className="text-padelgreen-400">LEVELUP</span>
+          </h1>
+          <p className="text-petrol-300 mt-1 font-medium tracking-wide text-sm opacity-80 uppercase tracking-widest">Performance & Técnica</p>
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[40px] border border-white/10 shadow-2xl">
           <form onSubmit={step === 'phone' ? handlePhoneSubmit : handlePasswordSubmit} className="space-y-6">
             <h2 className="text-xl font-bold text-white text-center">
-              {step === 'phone' ? 'Bem-vindo de volta' : 'Introduza a sua senha'}
+              {step === 'phone' ? 'Bem-vindo' : 'Introduza o seu PIN'}
             </h2>
             
             {error && (
@@ -88,7 +94,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   disabled={isLoading}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Seu número..."
+                  placeholder="9xx xxx xxx"
                   className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all placeholder:text-white/20 disabled:opacity-50"
                 />
               ) : (
@@ -99,7 +105,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   disabled={isLoading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="••••"
                   className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all placeholder:text-white/20 disabled:opacity-50"
                 />
               )}
@@ -111,16 +117,16 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               className="w-full py-4 bg-padelgreen-400 text-petrol-950 font-bold rounded-2xl hover:bg-padelgreen-300 transition-all shadow-lg shadow-padelgreen-400/20 text-lg flex items-center justify-center gap-2"
             >
               {isLoading && <div className="animate-spin w-5 h-5 border-2 border-petrol-950 border-t-transparent rounded-full"></div>}
-              {step === 'phone' ? 'Continuar' : 'Entrar na Conta'}
+              {step === 'phone' ? 'Próximo' : 'Entrar'}
             </button>
 
             {step === 'password' && (
               <button 
                 type="button" 
                 onClick={() => setStep('phone')}
-                className="w-full text-center text-sm text-petrol-400 hover:text-white transition-colors"
+                className="w-full text-center text-xs text-petrol-400 hover:text-white transition-colors"
               >
-                ← Voltar para número
+                ← Alterar número
               </button>
             )}
           </form>
