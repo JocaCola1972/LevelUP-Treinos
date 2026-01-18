@@ -45,6 +45,12 @@ export interface TrainingSession {
   hiddenForUserIds?: string[];
   turmaName?: string;
   coachId?: string;
+  payments?: {
+    [userId: string]: {
+      paid: boolean;
+      amount: number;
+    };
+  };
 }
 
 export interface ShiftRSVP {

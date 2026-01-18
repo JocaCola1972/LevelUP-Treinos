@@ -10,6 +10,7 @@ import UsersList from './components/UsersList';
 import ShiftsList from './components/ShiftsList';
 import SessionsHistory from './components/SessionsHistory';
 import ProfileEdit from './components/ProfileEdit';
+import Finops from './components/Finops';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>({
@@ -24,7 +25,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'shifts' | 'sessions' | 'profile'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'shifts' | 'sessions' | 'profile' | 'finops'>('dashboard');
 
   const refreshData = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -47,7 +48,6 @@ const App: React.FC = () => {
       
       let updatedCurrentUser = appState.currentUser;
       
-      // Tentar recuperar do localStorage se o estado estiver vazio
       if (!updatedCurrentUser) {
         const savedUser = localStorage.getItem('logged_user');
         if (savedUser) {
@@ -59,7 +59,6 @@ const App: React.FC = () => {
         }
       }
 
-      // Validar o utilizador atual contra a lista fresca da DB
       if (updatedCurrentUser) {
         const freshUser = users.find(u => u.id === updatedCurrentUser?.id);
         if (freshUser) {
@@ -101,7 +100,6 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, currentUser: null }));
   };
 
-  // 1. Erro de Inicialização
   if (initError) {
     return (
       <div className="min-h-screen bg-petrol-950 flex items-center justify-center p-4 text-center">
@@ -126,7 +124,6 @@ const App: React.FC = () => {
     );
   }
 
-  // 2. Estado de Carregamento Inicial (sem utilizador em cache)
   if (loading && !appState.currentUser) {
     return (
       <div className="min-h-screen bg-petrol-950 flex flex-col items-center justify-center p-6 text-center">
@@ -136,12 +133,10 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. Ecrã de Login (não autenticado)
   if (!appState.currentUser) {
     return <Auth onLogin={handleLogin} appLogo={appState.appLogo || 'logo.png'} />;
   }
 
-  // 4. Interface Principal (apenas quando currentUser existe)
   const renderContent = () => {
     if (loading) return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -155,6 +150,7 @@ const App: React.FC = () => {
       case 'users': return <UsersList state={appState} refresh={refreshData} />;
       case 'shifts': return <ShiftsList state={appState} refresh={refreshData} />;
       case 'sessions': return <SessionsHistory state={appState} refresh={refreshData} />;
+      case 'finops': return <Finops state={appState} refresh={refreshData} />;
       case 'profile': return <ProfileEdit user={appState.currentUser!} refresh={refreshData} onNavigate={setCurrentView} isAdminEspecial={appState.currentUser?.phone === '917772010'} currentAppLogo={appState.appLogo} />;
       default: return <Dashboard state={appState} refresh={refreshData} />;
     }

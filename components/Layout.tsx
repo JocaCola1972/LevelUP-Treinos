@@ -13,14 +13,21 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onNavigate, appLogo }) => {
+  const isAdminEspecial = user.phone === '917772010';
+  
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'finops', label: 'Finops', icon: '💰', roles: [Role.ADMIN], specialOnly: true },
     { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
 
-  const visibleMenuItems = menuItems.filter(item => item.roles.includes(user.role));
+  const visibleMenuItems = menuItems.filter(item => {
+    const hasRole = item.roles.includes(user.role);
+    if (item.specialOnly) return hasRole && isAdminEspecial;
+    return hasRole;
+  });
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden flex-col md:flex-row">
@@ -57,7 +64,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
             {currentView === 'dashboard' ? 'Painel de Controlo' : 
              currentView === 'users' ? 'Gestão de Utilizadores' :
              currentView === 'shifts' ? 'Agenda de Treinos' : 
-             currentView === 'profile' ? 'O Meu Perfil' : 'Histórico de Sessões'}
+             currentView === 'profile' ? 'O Meu Perfil' : 
+             currentView === 'finops' ? 'Controlo Financeiro' : 'Histórico de Sessões'}
           </h1>
 
           <div className="flex items-center gap-3">
@@ -66,7 +74,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
               title="Ver Perfil"
               className={`relative group transition-all active:scale-90 ${currentView === 'profile' ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
             >
-              {/* APENAS uma bola de Padel como ícone de perfil */}
               <div className="w-10 h-10 rounded-full bg-padelgreen-400 flex items-center justify-center ring-2 ring-padelgreen-500/20 shadow-md overflow-hidden text-2xl transition-transform group-hover:rotate-12">
                 🎾
               </div>

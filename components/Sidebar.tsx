@@ -11,12 +11,21 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogout, appLogo }) => {
+  const isAdminEspecial = user.phone === '917772010';
+
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'finops', label: 'Finops', icon: '💰', roles: [Role.ADMIN], specialOnly: true },
     { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
+
+  const visibleMenuItems = menuItems.filter(item => {
+    const hasRole = item.roles.includes(user.role);
+    if (item.specialOnly) return hasRole && isAdminEspecial;
+    return hasRole;
+  });
 
   return (
     <aside className="w-64 bg-petrol-950 text-white flex flex-col shrink-0">
@@ -36,9 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogo
       </div>
 
       <nav className="flex-1 px-4 py-6 space-y-1">
-        {menuItems
-          .filter(item => item.roles.includes(user.role))
-          .map(item => (
+        {visibleMenuItems.map(item => (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
