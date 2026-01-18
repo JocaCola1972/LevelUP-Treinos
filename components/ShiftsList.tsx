@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppState, Shift, RecurrenceType, Role, User } from '../types';
+import { AppState, Shift, RecurrenceType, Role, User, TrainingSession } from '../types';
 import { db } from '../services/db';
 import { DAYS_OF_WEEK } from '../constants';
 
@@ -14,6 +14,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [selectedDay, setSelectedDay] = useState<string>(DAYS_OF_WEEK[0]);
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [isFinalizing, setIsFinalizing] = useState<string | null>(null);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -27,6 +28,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     }
   }, [isModalOpen, editingShift]);
 
+  const isStaff = state.currentUser?.role === Role.ADMIN || state.currentUser?.role === Role.COACH;
   const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
   const students = state.users.filter(u => u.role === Role.STUDENT);
 
@@ -61,6 +63,42 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     await db.shifts.save(shift);
     refresh();
     setIsModalOpen(false);
+  };
+
+  const handleFinalizeSession = async (shift: Shift) => {
+    if (!shift.startDate) return;
+    if (!confirm('Deseja finalizar este treino? Ele será movido para o Histórico e deixará de aparecer no painel inicial.')) return;
+    
+    setIsFinalizing(shift.id);
+    try {
+      // Obter alunos que confirmaram presença (RSVP true)
+      const attendees = state.rsvps
+        .filter(r => r.shiftId === shift.id && r.date === shift.startDate && r.attending)
+        .map(r => r.userId);
+
+      // Verificar se já existe uma sessão para este turno/data
+      const existingSession = state.sessions.find(s => s.shiftId === shift.id && s.date.startsWith(shift.startDate!));
+
+      const sessionData: TrainingSession = {
+        id: existingSession?.id || Math.random().toString(36).substr(2, 9),
+        shiftId: shift.id,
+        date: `${shift.startDate}T${shift.startTime}`,
+        isActive: false,
+        completed: true,
+        attendeeIds: attendees,
+        notes: existingSession?.notes || 'Sessão finalizada via Agenda.',
+        hiddenForUserIds: existingSession?.hiddenForUserIds || [],
+        coachId: shift.coachId,
+        turmaName: `${shift.dayOfWeek} (${shift.startTime})`
+      };
+
+      await db.sessions.save(sessionData);
+      await refresh();
+    } catch (err: any) {
+      alert(`Erro ao finalizar: ${err.message}`);
+    } finally {
+      setIsFinalizing(null);
+    }
   };
 
   const StudentRSVPBadge: React.FC<{ student: User; shiftId: string; date: string }> = ({ student, shiftId, date }) => {
@@ -109,16 +147,20 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
           const shiftStudents = state.users.filter(u => shift.studentIds.includes(u.id));
           const dateStr = shift.startDate ? new Date(shift.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Sem data';
           
+          const isCompleted = state.sessions.some(s => s.shiftId === shift.id && s.date.startsWith(shift.startDate!) && s.completed);
+
           return (
-            <div key={shift.id} className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+            <div key={shift.id} className={`bg-white rounded-[32px] border ${isCompleted ? 'border-slate-100 opacity-75' : 'border-slate-200'} overflow-hidden shadow-sm hover:shadow-md transition-all group relative`}>
               <div className="p-6 md:p-8">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-black text-padelgreen-600 uppercase tracking-widest bg-padelgreen-50 px-2 py-0.5 rounded">TREINO ÚNICO</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${isCompleted ? 'bg-slate-100 text-slate-400' : 'bg-padelgreen-50 text-padelgreen-600'}`}>
+                        {isCompleted ? 'Finalizado' : 'Treino Único'}
+                      </span>
                       <span className="text-xs font-bold text-slate-400">• {dateStr}</span>
                     </div>
-                    <h3 className="text-2xl font-black text-petrol-900">{shift.dayOfWeek}, às {shift.startTime}</h3>
+                    <h3 className={`text-2xl font-black ${isCompleted ? 'text-slate-400' : 'text-petrol-900'}`}>{shift.dayOfWeek}, às {shift.startTime}</h3>
                     <p className="text-slate-500 text-sm font-medium">Duração prevista: {shift.durationMinutes} minutos</p>
                   </div>
                   {state.currentUser?.role === Role.ADMIN && (
@@ -129,12 +171,12 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   )}
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className={`flex flex-col md:flex-row gap-6 md:items-center justify-between p-4 ${isCompleted ? 'bg-slate-50/50' : 'bg-slate-50'} rounded-2xl border border-slate-100`}>
                   <div className="flex items-center gap-3">
-                    <img src={coach?.avatar} className="w-10 h-10 rounded-full ring-2 ring-white shadow-sm" alt="" />
+                    <img src={coach?.avatar} className={`w-10 h-10 rounded-full ring-2 ring-white shadow-sm ${isCompleted ? 'grayscale opacity-50' : ''}`} alt="" />
                     <div>
                       <p className="text-[10px] text-slate-400 uppercase font-black leading-none mb-1">Coach</p>
-                      <p className="text-sm font-bold text-petrol-900">{coach?.name}</p>
+                      <p className={`text-sm font-bold ${isCompleted ? 'text-slate-500' : 'text-petrol-900'}`}>{coach?.name}</p>
                     </div>
                   </div>
                   
@@ -147,6 +189,27 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                     </div>
                   </div>
                 </div>
+
+                {isStaff && (
+                  <div className="mt-6 pt-6 border-t border-slate-100 flex justify-end">
+                    {isCompleted ? (
+                      <span className="inline-flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                        ✅ Concluído
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handleFinalizeSession(shift)}
+                        disabled={isFinalizing === shift.id}
+                        className="w-full md:w-auto px-6 py-2.5 bg-white border-2 border-padelgreen-400 text-petrol-900 hover:bg-padelgreen-400 hover:text-petrol-950 font-black rounded-xl transition-all active:scale-95 shadow-sm text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                      >
+                        {isFinalizing === shift.id ? (
+                          <div className="animate-spin w-3 h-3 border-2 border-petrol-900 border-t-transparent rounded-full"></div>
+                        ) : '✓'}
+                        {isFinalizing === shift.id ? 'A processar...' : 'Finalizar Treino'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
