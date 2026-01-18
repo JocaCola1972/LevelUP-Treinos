@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Role, ShiftRSVP, RecurrenceType, Shift } from '../types';
+import { AppState, Role, ShiftRSVP, RecurrenceType } from '../types';
 import { db } from '../services/db';
-import { DAYS_OF_WEEK } from '../constants';
 
 interface DashboardProps {
   state: AppState;
@@ -16,151 +15,83 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const isAdmin = userRole === Role.ADMIN;
 
   /**
-   * Auxiliar para calcular datas de ocorrência
-   */
-  const getOccurrenceDate = (dayOfWeek: string, weeksFromNow: number) => {
-    const dayMap: Record<string, number> = {
-      'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
-    };
-    const targetDay = dayMap[dayOfWeek];
-    const now = new Date();
-    const currentDay = now.getDay();
-    
-    let daysToAdd = (targetDay - currentDay + 7) % 7;
-    daysToAdd += weeksFromNow * 7;
-    
-    const result = new Date(now);
-    result.setDate(now.getDate() + daysToAdd);
-    return result.toISOString().split('T')[0];
-  };
-
-  /**
-   * GERADOR DE AGENDA PARA ADMIN (7 DIAS / PRÓXIMA SEMANA)
+   * AGENDA PARA ADMIN (Apenas treinos futuros não finalizados)
    */
   const adminSchedule = useMemo(() => {
     if (!isAdmin) return [];
     
     const now = new Date();
-    const currentMinutes = (now.getHours() * 60) + now.getMinutes();
-    const currentDayIdx = (now.getDay() + 6) % 7; // 0=Segunda
-    const dayMap: Record<string, number> = {};
-    DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
+    now.setHours(0, 0, 0, 0);
 
-    const schedule: any[] = [];
+    return state.shifts
+      .filter(shift => {
+        if (!shift.startDate) return false;
+        const shiftDate = new Date(shift.startDate);
+        shiftDate.setHours(0, 0, 0, 0);
 
-    state.shifts.forEach(shift => {
-      const dayIdx = dayMap[shift.dayOfWeek];
-      const [h, m] = shift.startTime.split(':').map(Number);
-      const shiftMinutes = (h * 60) + m;
+        // Ocultar se a data já passou (e não for hoje)
+        if (shiftDate < now) return false;
 
-      // Verificar ocorrências para Semana Atual (0) e Próxima Semana (1)
-      [0, 1].forEach(weekOffset => {
-        const dateStr = getOccurrenceDate(shift.dayOfWeek, weekOffset);
-        
-        // Verifica se já existe uma sessão para esta data/horário
-        const existingSession = state.sessions.find(s => s.shiftId === shift.id && s.date.startsWith(dateStr));
-
-        // Se a sessão já foi finalizada pelo Admin, ela DEVE deixar de constar no painel de Início
-        if (existingSession && existingSession.completed) {
-          return;
-        }
-
-        // Se for semana 0 e o dia/hora já passou, ignora (a menos que esteja ativo)
-        if (weekOffset === 0 && (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes))) {
-          if (!existingSession || !existingSession.isActive) {
-            return;
-          }
-        }
-
-        // Lógica de Recorrência Quinzenal
-        if (shift.recurrence === RecurrenceType.QUINZENAL) {
-            if (shift.startDate) {
-                const start = new Date(shift.startDate);
-                const occDate = new Date(dateStr);
-                const diffTime = Math.abs(occDate.getTime() - start.getTime());
-                const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                if (diffWeeks % 2 !== 0) return;
-            } else if (weekOffset === 1) {
-                return;
-            }
-        }
-        
-        // Limite estrito de 7 dias (próxima semana)
-        const diffDays = (new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays > 7) return;
-
-        schedule.push({
-          ...shift,
-          date: dateStr,
-          timestamp: new Date(`${dateStr}T${shift.startTime}`).getTime()
-        });
-      });
-    });
-
-    return schedule.sort((a, b) => a.timestamp - b.timestamp);
+        // Ocultar se já existir uma sessão concluída para este treino/data
+        const session = state.sessions.find(s => 
+          s.shiftId === shift.id && 
+          s.date.startsWith(shift.startDate!) && 
+          s.completed
+        );
+        return !session;
+      })
+      .map(shift => ({
+        ...shift,
+        timestamp: new Date(`${shift.startDate}T${shift.startTime}`).getTime()
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
   }, [state.shifts, state.sessions, isAdmin]);
 
   /**
-   * LÓGICA DE PRÓXIMO TREINO (PARA NON-ADMINS)
+   * PRÓXIMO TREINO (ALUNOS/TREINADORES)
    */
   const nextTraining = useMemo(() => {
     if (isAdmin || !userId || !state.shifts.length) return null;
 
     const myShifts = state.shifts.filter(shift => {
-      if (userRole === Role.COACH) return shift.coachId === userId;
-      return shift.studentIds.includes(userId);
-    });
+      const isMyShift = userRole === Role.COACH ? shift.coachId === userId : shift.studentIds.includes(userId);
+      if (!isMyShift || !shift.startDate) return false;
 
-    if (myShifts.length === 0) return null;
+      // Ocultar se concluído
+      const session = state.sessions.find(s => 
+        s.shiftId === shift.id && 
+        s.date.startsWith(shift.startDate!) && 
+        s.completed
+      );
+      return !session;
+    });
 
     const now = new Date();
-    const dayMap: Record<string, number> = {};
-    DAYS_OF_WEEK.forEach((day, idx) => { dayMap[day] = idx; });
-    const currentDayIdx = (now.getDay() + 6) % 7; 
-    const currentMinutes = (now.getHours() * 60) + now.getMinutes();
+    const sorted = myShifts
+      .map(shift => {
+        const fullDate = new Date(`${shift.startDate}T${shift.startTime}`);
+        return { ...shift, fullDate, weight: fullDate.getTime() };
+      })
+      .filter(s => s.weight >= now.getTime() - (60 * 60 * 1000)) // Mostrar até 1h após começar
+      .sort((a, b) => a.weight - b.weight);
 
-    const occurrences = myShifts.map(shift => {
-      const dayIdx = dayMap[shift.dayOfWeek];
-      const [h, m] = shift.startTime.split(':').map(Number);
-      const shiftMinutes = (h * 60) + m;
+    if (!sorted.length) return null;
 
-      let offsetWeeks = 0;
-      if (dayIdx < currentDayIdx || (dayIdx === currentDayIdx && shiftMinutes <= currentMinutes)) {
-        offsetWeeks = 1;
-      }
-
-      let dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
-      
-      // Loop para encontrar a próxima data válida que NÃO esteja completa ou ativa
-      let foundValid = false;
-      let safetyCounter = 0;
-      while (!foundValid && safetyCounter < 10) {
-        const session = state.sessions.find(s => s.shiftId === shift.id && s.date.startsWith(dateStr));
-        
-        if (session && (session.completed || session.isActive)) {
-          offsetWeeks += (shift.recurrence === RecurrenceType.QUINZENAL ? 2 : 1);
-          dateStr = getOccurrenceDate(shift.dayOfWeek, offsetWeeks);
-          safetyCounter++;
-        } else {
-          foundValid = true;
-        }
-      }
-
-      const finalWeight = (dayIdx * 24 * 60) + shiftMinutes + (offsetWeeks * 7 * 24 * 60);
-
-      return { id: shift.id, dayOfWeek: shift.dayOfWeek, startTime: shift.startTime, date: dateStr, weight: finalWeight };
-    });
-
-    occurrences.sort((a, b) => a.weight - b.weight);
-    const next = occurrences[0];
+    const next = sorted[0];
     const todayStr = now.toISOString().split('T')[0];
     const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
 
     let dateLabel = next.dayOfWeek;
-    if (next.date === todayStr) dateLabel = 'Hoje';
-    else if (next.date === tomorrowStr) dateLabel = 'Amanhã';
+    if (next.startDate === todayStr) dateLabel = 'Hoje';
+    else if (next.startDate === tomorrowStr) dateLabel = 'Amanhã';
 
-    return { id: next.id, label: dateLabel, time: next.startTime, date: next.date };
+    return { 
+      id: next.id, 
+      label: dateLabel, 
+      time: next.startTime, 
+      date: next.startDate!,
+      displayDate: new Date(next.startDate!).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })
+    };
   }, [state.shifts, state.sessions, userId, userRole, isAdmin]);
 
   const currentRSVP = useMemo(() => {
@@ -207,37 +138,33 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl md:text-3xl font-black text-petrol-900 mb-2">Olá, {state.currentUser?.name}! 👋</h2>
-            <p className="text-slate-500 font-medium">{isAdmin ? 'Gestão global do clube para a próxima semana.' : 'Bom tê-lo de volta ao PadelPro.'}</p>
+            <p className="text-slate-500 font-medium">{isAdmin ? 'Monitorização dos próximos treinos agendados.' : 'Consulta o teu próximo desafio em campo.'}</p>
           </div>
-          <button onClick={refresh} className="self-start md:self-center text-[10px] font-bold text-slate-400 hover:text-padelgreen-600 uppercase tracking-widest transition-colors flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+          <button onClick={refresh} className="self-start md:self-center text-[10px] font-black text-slate-400 hover:text-padelgreen-600 uppercase tracking-widest transition-colors flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 active:scale-95">
             🔄 Sincronizar
           </button>
         </div>
       </div>
 
-      {/* ADMIN VIEW: GLOBAL 7-DAY SCHEDULE */}
       {isAdmin ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-4">
-              <h3 className="text-lg font-black text-petrol-900 uppercase tracking-tight flex items-center gap-2">
-                <span className="w-2 h-2 bg-padelgreen-500 rounded-full animate-pulse"></span>
-                Agenda Global (Próxima Semana)
-              </h3>
-              <button onClick={refresh} className="hidden sm:block text-[10px] font-bold text-slate-400 hover:text-padelgreen-500 uppercase tracking-widest transition-colors">🔄 Sincronizar</button>
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{adminSchedule.length} Aulas planeadas</span>
+            <h3 className="text-lg font-black text-petrol-900 uppercase tracking-tight flex items-center gap-2">
+              <span className="w-2 h-2 bg-padelgreen-500 rounded-full animate-pulse"></span>
+              Próximos Treinos (Pontuais)
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{adminSchedule.length} Agendados</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {adminSchedule.map((occ, idx) => {
+            {adminSchedule.map((occ) => {
               const coach = state.users.find(u => u.id === occ.coachId);
-              const stats = getAttendanceStats(occ.id, occ.date);
-              const occDate = new Date(occ.date);
-              const isToday = occ.date === new Date().toISOString().split('T')[0];
+              const stats = getAttendanceStats(occ.id, occ.startDate!);
+              const occDate = new Date(occ.startDate!);
+              const isToday = occ.startDate === new Date().toISOString().split('T')[0];
 
               return (
-                <div key={`${occ.id}-${idx}`} className={`bg-white rounded-3xl border ${isToday ? 'border-padelgreen-400 ring-4 ring-padelgreen-50' : 'border-slate-200'} p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 relative overflow-hidden group`}>
+                <div key={occ.id} className={`bg-white rounded-3xl border ${isToday ? 'border-padelgreen-400 ring-4 ring-padelgreen-50' : 'border-slate-200'} p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 relative overflow-hidden`}>
                   {isToday && <div className="absolute top-0 right-0 bg-padelgreen-400 text-petrol-950 text-[8px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest">Hoje</div>}
                   
                   <div className="flex items-center gap-4">
@@ -253,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
                   <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
                     <div className="flex items-center gap-2">
-                      <img src={coach?.avatar} className="w-6 h-6 rounded-full border border-white" alt="" />
+                      <img src={coach?.avatar} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
                       <span className="text-xs font-bold text-slate-600 truncate max-w-[80px]">{coach?.name.split(' ')[0]}</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -273,12 +200,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
           
           {adminSchedule.length === 0 && (
             <div className="bg-white rounded-[32px] p-16 text-center border border-slate-200">
-                <p className="text-slate-400 font-medium">Não existem aulas programadas para a próxima semana.</p>
+                <p className="text-slate-400 font-medium italic">Não existem treinos marcados para os próximos dias.</p>
             </div>
           )}
         </div>
       ) : (
-        /* STUDENT / COACH VIEW: SINGLE NEXT TRAINING CARD */
         nextTraining ? (
           <div className="bg-petrol-900 rounded-[32px] md:rounded-[40px] p-6 md:p-10 text-white shadow-xl shadow-petrol-900/20 relative overflow-hidden">
             <div className="absolute bottom-0 right-0 w-64 h-64 bg-padelgreen-400/5 rounded-full -mb-32 -mr-32"></div>
@@ -297,7 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                     </div>
                     <p className="text-petrol-300 text-base md:text-lg font-medium mt-2 flex items-center gap-2">
                       <span className="opacity-50 text-xl">📅</span> 
-                      {new Date(nextTraining.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      {nextTraining.displayDate}
                     </p>
                   </div>
                 </div>
@@ -334,50 +260,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                   </div>
                 </div>
               </div>
-              
-              <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-padelgreen-400 rounded-full"></span>
-                    Confirmados ({getAttendanceStats(nextTraining.id, nextTraining.date).going})
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {state.rsvps.filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date && r.attending).map(r => {
-                      const u = state.users.find(usr => usr.id === r.userId);
-                      return (
-                        <div key={r.userId} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5">
-                          <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
-                          <span className="text-xs font-medium">{u?.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-petrol-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-                    Indisponíveis ({state.rsvps.filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date && !r.attending).length})
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {state.rsvps.filter(r => r.shiftId === nextTraining.id && r.date === nextTraining.date && !r.attending).map(r => {
-                      const u = state.users.find(usr => usr.id === r.userId);
-                      return (
-                        <div key={r.userId} className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/5 opacity-60">
-                          <img src={u?.avatar} className="w-5 h-5 rounded-full" alt="" />
-                          <span className="text-xs font-medium">{u?.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-[32px] p-10 border border-slate-200 text-center shadow-sm">
-            <div className="text-4xl mb-4">📅</div>
-            <h3 className="text-xl font-bold text-petrol-900">Sem treinos agendados</h3>
-            <p className="text-slate-500 mt-2">Parece que não tens sessões marcadas para os próximos tempos.</p>
+          <div className="bg-white rounded-[32px] p-16 border border-slate-200 text-center shadow-sm">
+            <div className="text-4xl mb-4 grayscale opacity-30">🎾</div>
+            <h3 className="text-xl font-bold text-petrol-900">Sem treinos no horizonte</h3>
+            <p className="text-slate-500 mt-2 max-w-sm mx-auto font-medium">Não tens nenhum treino agendado para os próximos dias. Fala com o teu instrutor!</p>
           </div>
         )
       )}
