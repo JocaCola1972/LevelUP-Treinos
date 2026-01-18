@@ -60,11 +60,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin, appLogo }) => {
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8">
           <div className="mb-6 flex justify-center">
-            <img 
-              src={appLogo} 
-              alt="TREINOS LEVELUP Logo" 
-              className="w-56 h-56 object-contain drop-shadow-[0_10px_15px_rgba(255,255,255,0.1)] animate-in zoom-in duration-700"
-            />
+            {/* Moldura Circular para o Logo */}
+            <div className="w-48 h-48 md:w-56 md:h-56 bg-white rounded-full p-6 shadow-2xl border-8 border-white/5 flex items-center justify-center overflow-hidden animate-in zoom-in duration-700">
+              <img 
+                src={appLogo} 
+                alt="Logo" 
+                className="w-full h-full object-contain"
+              />
+            </div>
           </div>
           <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
             TREINOS <span className="text-padelgreen-400">LEVELUP</span>
