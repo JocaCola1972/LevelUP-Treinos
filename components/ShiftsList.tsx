@@ -72,7 +72,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
       durationMinutes: parseInt(formData.get('duration') as string),
       coachId: formData.get('coachId') as string,
       studentIds: Array.from(formData.getAll('studentIds')) as string[],
-      recurrence: formData.get('recurrence') as RecurrenceType,
+      recurrence: RecurrenceType.SEMANAL, // Definido como Semanal por padrão
       startDate: selectedDate || undefined,
     };
     await db.shifts.save(shift);
@@ -133,10 +133,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-black uppercase tracking-widest text-padelgreen-600 bg-padelgreen-50 px-2 py-0.5 rounded">
-                        {shift.recurrence}
-                      </span>
-                      <span className="text-xs font-bold text-slate-400">• Próximo: {new Date(nextDate).toLocaleDateString('pt-PT')}</span>
+                      <span className="text-xs font-bold text-slate-400">Próximo: {new Date(nextDate).toLocaleDateString('pt-PT')}</span>
                     </div>
                     <h3 className="text-2xl font-black text-petrol-900">{shift.dayOfWeek} às {shift.startTime}</h3>
                     <p className="text-slate-500 text-sm font-medium">Duração: {shift.durationMinutes} minutos</p>
@@ -192,26 +189,16 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                 <p className="text-[10px] text-petrol-500 mt-2 italic">Selecionar a data preenche automaticamente o dia da semana abaixo.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
-                  <select 
-                    name="dayOfWeek" 
-                    value={selectedDay}
-                    onChange={(e) => setSelectedDay(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all"
-                  >
-                    {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Recorrência</label>
-                  <select name="recurrence" defaultValue={editingShift?.recurrence || RecurrenceType.SEMANAL} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all">
-                    <option value={RecurrenceType.SEMANAL}>Semanal</option>
-                    <option value={RecurrenceType.QUINZENAL}>Quinzenal</option>
-                    <option value={RecurrenceType.PONTUAL}>Pontual</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase ml-2 tracking-wider">Dia da Semana</label>
+                <select 
+                  name="dayOfWeek" 
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 transition-all"
+                >
+                  {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
