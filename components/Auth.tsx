@@ -5,9 +5,10 @@ import { db } from '../services/db';
 
 interface AuthProps {
   onLogin: (user: User) => void;
+  appLogo: string;
 }
 
-const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+const Auth: React.FC<AuthProps> = ({ onLogin, appLogo }) => {
   const [step, setStep] = useState<'phone' | 'password'>('phone');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -60,7 +61,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="mb-6 flex justify-center">
             <img 
-              src="logo.png" 
+              src={appLogo} 
               alt="TREINOS LEVELUP Logo" 
               className="w-56 h-56 object-contain drop-shadow-[0_10px_15px_rgba(255,255,255,0.1)] animate-in zoom-in duration-700"
             />

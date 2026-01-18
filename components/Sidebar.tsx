@@ -7,9 +7,10 @@ interface SidebarProps {
   currentView: string;
   onNavigate: (view: any) => void;
   onLogout: () => void;
+  appLogo: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogout, appLogo }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
@@ -21,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogo
     <aside className="w-64 bg-petrol-950 text-white flex flex-col shrink-0">
       <div className="p-8 flex flex-col items-center gap-4 border-b border-petrol-900">
         <img 
-          src="logo.png" 
+          src={appLogo} 
           alt="TREINOS LEVELUP" 
           className="w-24 h-24 object-contain"
         />

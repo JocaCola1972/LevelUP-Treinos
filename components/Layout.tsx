@@ -9,9 +9,10 @@ interface LayoutProps {
   onLogout: () => void;
   currentView: string;
   onNavigate: (view: any) => void;
+  appLogo: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onNavigate }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onNavigate, appLogo }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
@@ -30,6 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
           currentView={currentView} 
           onNavigate={onNavigate} 
           onLogout={onLogout}
+          appLogo={appLogo}
         />
       </div>
 
@@ -37,7 +39,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
         <header className="h-16 flex items-center justify-between px-4 md:px-8 bg-white border-b border-slate-200 shrink-0 z-20">
           <div className="flex items-center gap-3 md:hidden">
             <img 
-              src="logo.png" 
+              src={appLogo} 
               alt="Logo" 
               className="w-10 h-10 object-contain"
             />

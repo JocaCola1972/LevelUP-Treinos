@@ -62,4 +62,5 @@ export interface AppState {
   sessions: TrainingSession[];
   rsvps: ShiftRSVP[];
   isOffline: boolean;
+  appLogo?: string;
 }
