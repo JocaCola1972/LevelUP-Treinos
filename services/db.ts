@@ -21,31 +21,37 @@ export const db = {
     getLogo: async (): Promise<string | null> => {
       if (!isSupabaseConfigured) return null;
       try {
-        // Usamos maybeSingle() para evitar erro se não houver registos
         const { data, error } = await supabase
           .from('settings')
           .select('value')
           .eq('key', 'app_logo')
           .maybeSingle();
         
-        // Se houver erro de tabela inexistente (42P01), ignoramos e usamos fallback
         if (error) {
-          if (error.code === '42P01') {
-            console.warn("Tabela 'settings' não existe. Usando logo padrão.");
+          // 42P01: Postgres undefined_table
+          // PGRST205: PostgREST table not in schema cache
+          if (error.code === '42P01' || error.code === 'PGRST205') {
+            console.warn(`A tabela 'settings' ainda não foi criada no Supabase (${error.code}). Usando logo padrão.`);
             return null;
           }
           throw error;
         }
         return data?.value || null;
       } catch (err) {
-        console.warn("Erro ao carregar logo:", err);
+        // Falha silenciosa para o logo: a app deve abrir mesmo sem tabela de settings
+        console.warn("Aviso: Falha ao procurar logo personalizado (tabela inexistente?):", err);
         return null;
       }
     },
     saveLogo: async (url: string) => {
       ensureConfig();
       const { error } = await supabase.from('settings').upsert({ key: 'app_logo', value: url });
-      if (error) handleDbError(error, "saveLogo");
+      if (error) {
+        if (error.code === 'PGRST205' || error.code === '42P01') {
+          throw new Error("A tabela 'settings' não existe na sua base de dados. Por favor, crie-a no SQL Editor do Supabase antes de tentar mudar o logo.");
+        }
+        handleDbError(error, "saveLogo");
+      }
     }
   },
   users: {
