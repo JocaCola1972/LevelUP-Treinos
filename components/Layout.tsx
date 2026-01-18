@@ -39,33 +39,44 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
             <div className="w-8 h-8 bg-padelgreen-400 rounded-lg flex items-center justify-center text-petrol-950 font-black text-lg">
               P
             </div>
-            <h1 className="text-lg font-bold text-petrol-900 truncate max-w-[150px]">
-              {currentView === 'dashboard' ? 'Painel' : 
-               currentView === 'users' ? 'Utilizadores' :
-               currentView === 'shifts' ? 'Agenda' : 'Histórico'}
+            <h1 className="text-lg font-bold text-petrol-900 truncate max-w-[120px]">
+              {currentView === 'dashboard' ? 'Início' : 
+               currentView === 'users' ? 'Pessoas' :
+               currentView === 'shifts' ? 'Agenda' : 
+               currentView === 'profile' ? 'O Meu Perfil' : 'Histórico'}
             </h1>
           </div>
           
-          <h1 className="hidden md:block text-xl font-bold text-petrol-900 capitalize">
+          <h1 className="hidden md:block text-xl font-bold text-petrol-900">
             {currentView === 'dashboard' ? 'Painel de Controlo' : 
              currentView === 'users' ? 'Gestão de Utilizadores' :
-             currentView === 'shifts' ? 'Horários de Treino' : 'Histórico de Sessões'}
+             currentView === 'shifts' ? 'Agenda de Treinos' : 
+             currentView === 'profile' ? 'Edição de Perfil' : 'Histórico de Sessões'}
           </h1>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onNavigate('profile')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all border ${currentView === 'profile' ? 'bg-padelgreen-50 border-padelgreen-300' : 'hover:bg-slate-50 border-transparent'}`}
+            >
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold leading-none">{user.name}</p>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">{user.role}</p>
+                <p className="text-xs font-bold text-petrol-900 leading-none">{user.name}</p>
+                <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter">Editar Perfil</p>
               </div>
-              <button 
-                onClick={() => { if(confirm('Sair da conta?')) onLogout(); }}
-                className="relative group"
-              >
-                <img src={user.avatar} className="w-9 h-9 rounded-full object-cover ring-2 ring-padelgreen-400" alt="" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white md:hidden"></div>
-              </button>
-            </div>
+              <div className="relative">
+                <img src={user.avatar} className="w-8 h-8 rounded-full object-cover ring-2 ring-padelgreen-400 shadow-sm" alt="" />
+                <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-md border border-slate-100">
+                  <span className="text-[8px]">✏️</span>
+                </div>
+              </div>
+            </button>
+            <button 
+              onClick={() => { if(confirm('Sair do sistema?')) onLogout(); }}
+              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+              title="Sair"
+            >
+              🚪
+            </button>
           </div>
         </header>
 
@@ -77,22 +88,17 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center h-16 px-2 z-30 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center h-16 px-2 z-30 shadow-lg">
         {visibleMenuItems.map(item => (
           <button
             key={item.id}
             onClick={() => onNavigate(item.id)}
             className={`flex flex-col items-center justify-center w-full h-full transition-all ${
-              currentView === item.id 
-                ? 'text-padelgreen-600' 
-                : 'text-slate-400'
+              currentView === item.id ? 'text-padelgreen-600' : 'text-slate-400'
             }`}
           >
             <span className="text-xl mb-0.5">{item.icon}</span>
             <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
-            {currentView === item.id && (
-              <div className="absolute bottom-1 w-1 h-1 bg-padelgreen-500 rounded-full"></div>
-            )}
           </button>
         ))}
       </nav>

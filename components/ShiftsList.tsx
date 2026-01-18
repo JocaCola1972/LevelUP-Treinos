@@ -139,7 +139,12 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {state.shifts
-          .sort((a, b) => new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime())
+          .sort((a, b) => {
+            // Ordenação por data E hora
+            const dateTimeA = `${a.startDate || '9999-12-31'}T${a.startTime || '23:59'}`;
+            const dateTimeB = `${b.startDate || '9999-12-31'}T${b.startTime || '23:59'}`;
+            return dateTimeA.localeCompare(dateTimeB);
+          })
           .map(shift => {
           const coach = state.users.find(u => u.id === shift.coachId);
           const shiftStudents = state.users.filter(u => shift.studentIds.includes(u.id));
