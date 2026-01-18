@@ -20,7 +20,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [state.sessions]);
 
-  // Estatísticas Globais
+  // Estatísticas Globais Recalculadas
   const stats = useMemo(() => {
     let totalReceived = 0;
     let paidCount = 0;
@@ -42,7 +42,9 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
   }, [sessions]);
 
   const handleUpdatePayment = async (session: TrainingSession, userId: string, paid: boolean, amount: number) => {
-    setSavingId(`${session.id}-${userId}`);
+    const actionId = `${session.id}-${userId}`;
+    setSavingId(actionId);
+    
     try {
       const updatedPayments = {
         ...(session.payments || {}),
@@ -58,6 +60,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
       refresh();
     } catch (err) {
       console.error("Erro ao atualizar pagamento:", err);
+      alert("Erro ao guardar o estado do pagamento.");
     } finally {
       setSavingId(null);
     }
@@ -96,9 +99,9 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
         <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pagamentos Pendentes</p>
-            <h3 className="text-3xl font-black text-red-500">{stats.pendingCount}</h3>
+            <h3 className="text-3xl font-black text-amber-500">{stats.pendingCount}</h3>
           </div>
-          <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-2xl">⏳</div>
+          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-2xl">⏳</div>
         </div>
       </div>
 
@@ -122,7 +125,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
             const date = new Date(session.date);
             const attendees = state.users.filter(u => session.attendeeIds.includes(u.id));
             
-            // Soma apenas o que foi marcado como PAGO nesta sessão
+            // Soma dinâmica: Apenas o que está como PAGO
             const sessionTotalPaid = Object.values(session.payments || {})
               .reduce((acc, p) => acc + (p.paid ? p.amount : 0), 0);
             
@@ -142,13 +145,13 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                         {session.turmaName || "Treino Pontual"}
                       </h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {attendees.length} Atletas • {sessionPaidCount} Pagos
+                        {attendees.length} Atletas • {sessionPaidCount} Confirmados
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Recebido na Sessão</p>
-                    <div className="bg-padelgreen-400 text-petrol-950 px-3 py-1 rounded-full text-sm font-black shadow-sm">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Recebido nesta Sessão</p>
+                    <div className="bg-padelgreen-400 text-petrol-950 px-4 py-1.5 rounded-full text-sm font-black shadow-md">
                       {sessionTotalPaid.toFixed(2)}€
                     </div>
                   </div>
@@ -160,43 +163,51 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                     const isSaving = savingId === `${session.id}-${student.id}`;
 
                     return (
-                      <div key={student.id} className={`p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors ${payment.paid ? 'bg-padelgreen-50/20' : ''}`}>
+                      <div key={student.id} className={`p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-300 ${payment.paid ? 'bg-padelgreen-50/20' : 'bg-white'}`}>
                         <div className="flex items-center gap-3 w-full sm:w-auto">
-                          <img src={student.avatar} className="w-10 h-10 rounded-full border border-white shadow-sm" alt="" />
+                          <img src={student.avatar} className="w-10 h-10 rounded-full border border-white shadow-sm shrink-0" alt="" />
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-petrol-900 truncate">{student.name}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">{student.phone}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{student.phone}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-slate-400 uppercase">Valor</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase">Preço</span>
                             <div className="relative">
                               <input 
                                 type="number"
                                 defaultValue={payment.amount}
                                 onBlur={(e) => handleUpdatePayment(session, student.id, payment.paid, parseFloat(e.target.value) || 0)}
-                                className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-center outline-none focus:ring-2 focus:ring-padelgreen-400 shadow-sm"
+                                className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-center outline-none focus:ring-2 focus:ring-padelgreen-400 shadow-sm"
                               />
                               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-300">€</span>
                             </div>
                           </div>
 
+                          {/* Checkbox / Toggle Button */}
                           <button
+                            type="button"
                             onClick={() => handleUpdatePayment(session, student.id, !payment.paid, payment.amount)}
                             disabled={isSaving}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border-2 transition-all min-w-[120px] justify-center ${
+                            className={`relative flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all min-w-[130px] justify-center group active:scale-95 ${
                               payment.paid 
-                                ? 'bg-padelgreen-500 border-padelgreen-500 text-white shadow-lg shadow-padelgreen-500/20' 
-                                : 'bg-white border-slate-200 text-slate-400 hover:border-padelgreen-300 hover:text-padelgreen-600'
+                                ? 'bg-padelgreen-500 border-padelgreen-500 text-white shadow-lg shadow-padelgreen-500/30' 
+                                : 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-400'
                             }`}
                           >
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${payment.paid ? 'bg-white border-white' : 'border-slate-200'}`}>
-                              {payment.paid && <span className="text-[10px] text-padelgreen-600">✓</span>}
-                            </div>
+                            {isSaving ? (
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                                payment.paid ? 'bg-white border-white' : 'border-amber-300 bg-white'
+                              }`}>
+                                {payment.paid && <span className="text-[10px] text-padelgreen-600 font-black">✓</span>}
+                              </div>
+                            )}
                             <span className="text-[10px] font-black uppercase tracking-widest">
-                              {isSaving ? '...' : (payment.paid ? 'Pago' : 'Pendente')}
+                              {isSaving ? 'A guardar' : (payment.paid ? 'Pago' : 'Pendente')}
                             </span>
                           </button>
                         </div>
