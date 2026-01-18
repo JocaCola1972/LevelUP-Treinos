@@ -63,17 +63,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
           <div className="flex items-center gap-3">
             <button 
               onClick={() => onNavigate('profile')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all border ${currentView === 'profile' ? 'bg-padelgreen-50 border-padelgreen-300' : 'hover:bg-slate-50 border-transparent'}`}
+              title="Ver Perfil"
+              className={`relative group transition-all active:scale-90 ${currentView === 'profile' ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
             >
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-petrol-900 leading-none">{user.name}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter">Perfil</p>
-              </div>
-              <div className="relative">
-                <img src={user.avatar} className="w-8 h-8 rounded-full object-cover ring-2 ring-padelgreen-400 shadow-sm" alt="" />
-                <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-md border border-slate-100">
-                  <span className="text-[8px]">✏️</span>
-                </div>
+              {/* APENAS uma bola de Padel como ícone de perfil */}
+              <div className="w-10 h-10 rounded-full bg-padelgreen-400 flex items-center justify-center ring-2 ring-padelgreen-500/20 shadow-md overflow-hidden text-2xl transition-transform group-hover:rotate-12">
+                🎾
               </div>
             </button>
             <button 
