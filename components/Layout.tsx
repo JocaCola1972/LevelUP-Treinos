@@ -78,13 +78,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
                 🎾
               </div>
             </button>
-            <button 
-              onClick={() => { if(confirm('Sair do sistema?')) onLogout(); }}
-              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-              title="Sair"
-            >
-              🚪
-            </button>
           </div>
         </header>
 

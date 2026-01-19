@@ -9,9 +9,10 @@ interface ProfileEditProps {
   onNavigate: (view: any) => void;
   isAdminEspecial: boolean;
   currentAppLogo?: string;
+  onLogout: () => void;
 }
 
-const ProfileEdit: React.FC<ProfileEditProps> = ({ user, refresh, onNavigate, isAdminEspecial, currentAppLogo }) => {
+const ProfileEdit: React.FC<ProfileEditProps> = ({ user, refresh, onNavigate, isAdminEspecial, currentAppLogo, onLogout }) => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [newLogoUrl, setNewLogoUrl] = useState<string>(currentAppLogo || '');
@@ -61,8 +62,14 @@ const ProfileEdit: React.FC<ProfileEditProps> = ({ user, refresh, onNavigate, is
     }
   };
 
+  const handleLogoutClick = () => {
+    if (confirm('Deseja realmente sair da aplicação?')) {
+      onLogout();
+    }
+  };
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500">
+    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 md:pb-8">
       <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-10 border border-slate-200 shadow-sm">
         <div className="flex flex-col items-center mb-10">
           <div className="relative group">
@@ -164,25 +171,36 @@ const ProfileEdit: React.FC<ProfileEditProps> = ({ user, refresh, onNavigate, is
                   </div>
                 </div>
               </div>
-              <p className="text-[9px] text-slate-400 font-medium italic">Esta imagem será utilizada no ecrã de login, menu principal e cabeçalho para todos os utilizadores.</p>
             </div>
           )}
 
-          <div className="flex gap-4 pt-4">
-            <button 
-              type="button" 
-              onClick={() => onNavigate('dashboard')}
-              className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit" 
-              disabled={saving}
-              className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg hover:bg-petrol-950 transition-all flex items-center justify-center gap-2 active:scale-95"
-            >
-              {saving ? 'A guardar...' : 'Guardar Tudo'}
-            </button>
+          <div className="space-y-4 pt-4">
+            <div className="flex gap-4">
+              <button 
+                type="button" 
+                onClick={() => onNavigate('dashboard')}
+                className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="flex-1 py-4 bg-petrol-900 text-white font-bold rounded-2xl shadow-lg hover:bg-petrol-950 transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                {saving ? 'A guardar...' : 'Guardar Tudo'}
+              </button>
+            </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <button 
+                type="button" 
+                onClick={handleLogoutClick}
+                className="w-full py-4 bg-red-50 text-red-600 border border-red-100 font-black rounded-2xl hover:bg-red-100 transition-all flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest text-xs"
+              >
+                🚪 Sair da Aplicação
+              </button>
+            </div>
           </div>
         </form>
       </div>

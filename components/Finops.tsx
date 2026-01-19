@@ -156,10 +156,13 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
             const date = new Date(session.date);
             const attendees = state.users.filter(u => session.attendeeIds.includes(u.id));
             
-            const sessionTotalPaid = Object.values(session.payments || {})
+            // Fix: Explicitly casting values to ensure type safety for calculations
+            const paymentValues = Object.values(session.payments || {}) as Array<{paid: boolean, amount: number}>;
+            
+            const sessionTotalPaid = paymentValues
               .reduce((acc, p) => acc + (p.paid ? p.amount : 0), 0);
             
-            const sessionPaidCount = Object.values(session.payments || {})
+            const sessionPaidCount = paymentValues
               .filter(p => p.paid).length;
 
             return (
@@ -181,6 +184,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Recebido nesta Sessão</p>
+                    {/* Fix: sessionTotalPaid is now guaranteed to be a number */}
                     <div className="bg-padelgreen-400 text-petrol-950 px-4 py-1.5 rounded-full text-sm font-black shadow-md">
                       {sessionTotalPaid.toFixed(2)}€
                     </div>

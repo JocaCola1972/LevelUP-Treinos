@@ -60,16 +60,6 @@ const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogo
             </button>
           ))}
       </nav>
-
-      <div className="p-4 border-t border-petrol-900">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold text-xs uppercase tracking-widest"
-        >
-          <span className="text-xl">🚪</span>
-          Sair
-        </button>
-      </div>
     </aside>
   );
 };

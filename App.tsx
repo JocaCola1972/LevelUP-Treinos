@@ -151,7 +151,16 @@ const App: React.FC = () => {
       case 'shifts': return <ShiftsList state={appState} refresh={refreshData} />;
       case 'sessions': return <SessionsHistory state={appState} refresh={refreshData} />;
       case 'finops': return <Finops state={appState} refresh={refreshData} />;
-      case 'profile': return <ProfileEdit user={appState.currentUser!} refresh={refreshData} onNavigate={setCurrentView} isAdminEspecial={appState.currentUser?.phone === '917772010'} currentAppLogo={appState.appLogo} />;
+      case 'profile': return (
+        <ProfileEdit 
+          user={appState.currentUser!} 
+          refresh={refreshData} 
+          onNavigate={setCurrentView} 
+          isAdminEspecial={appState.currentUser?.phone === '917772010'} 
+          currentAppLogo={appState.appLogo}
+          onLogout={handleLogout}
+        />
+      );
       default: return <Dashboard state={appState} refresh={refreshData} />;
     }
   };
