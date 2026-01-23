@@ -90,7 +90,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
       label: dateLabel, 
       time: next.startTime, 
       date: next.startDate!,
-      displayDate: new Date(next.startDate!).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })
+      displayDate: new Date(next.startDate!).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' }),
+      clubName: next.clubName
     };
   }, [state.shifts, state.sessions, userId, userRole, isAdmin]);
 
@@ -221,10 +222,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
                       <h3 className="text-4xl md:text-5xl font-black">{nextTraining.label}</h3>
                       <span className="text-padelgreen-400 text-2xl md:text-3xl font-light">às {nextTraining.time}</span>
                     </div>
-                    <p className="text-petrol-300 text-base md:text-lg font-medium mt-2 flex items-center gap-2">
-                      <span className="opacity-50 text-xl">📅</span> 
-                      {nextTraining.displayDate}
-                    </p>
+                    <div className="mt-3 flex flex-col gap-2">
+                      <p className="text-petrol-300 text-base md:text-lg font-medium flex items-center gap-2">
+                        <span className="opacity-50 text-xl">📅</span> 
+                        {nextTraining.displayDate}
+                      </p>
+                      <p className="text-padelgreen-400 text-base md:text-lg font-black flex items-center gap-2">
+                        <span className="text-xl">📍</span> 
+                        {nextTraining.clubName || "Local por definir"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
