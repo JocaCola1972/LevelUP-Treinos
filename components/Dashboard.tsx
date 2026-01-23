@@ -15,6 +15,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
   const isAdmin = userRole === Role.ADMIN;
 
   /**
+   * MENSAGENS E ALERTAS DO ADMIN
+   */
+  const activeAlerts = useMemo(() => {
+    if (!userId) return [];
+    return state.messages.filter(m => {
+      const isTargeted = m.recipientIds.includes('all') || m.recipientIds.includes(userId);
+      return isTargeted && m.type === 'ALERT';
+    });
+  }, [state.messages, userId]);
+
+  /**
    * AGENDA PARA ADMIN (Apenas treinos futuros não finalizados)
    */
   const adminSchedule = useMemo(() => {
@@ -133,6 +144,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, refresh }) => {
 
   return (
     <div className="space-y-6">
+      {/* Alert Messages (Highlighted) */}
+      {activeAlerts.length > 0 && (
+        <div className="space-y-3">
+          {activeAlerts.map(alert => (
+            <div key={alert.id} className="bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-3xl shadow-sm flex items-start gap-4 animate-in slide-in-from-top duration-500">
+              <span className="text-2xl shrink-0">⚠️</span>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Alerta do Administrador</p>
+                <p className="text-sm font-bold text-amber-900 leading-relaxed">{alert.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Welcome Header */}
       <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-10 border border-slate-200 shadow-sm overflow-hidden relative group">
         <div className="absolute top-0 right-0 w-32 h-32 bg-padelgreen-400/10 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>

@@ -1,5 +1,5 @@
 
-import { User, Shift, TrainingSession, ShiftRSVP } from '../types';
+import { User, Shift, TrainingSession, ShiftRSVP, AppMessage } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const ensureConfig = () => {
@@ -170,6 +170,31 @@ export const db = {
       ensureConfig();
       const { error } = await supabase.from('clubs').upsert({ name }, { onConflict: 'name' });
       if (error) handleDbError(error, "clubs.save");
+    }
+  },
+  messages: {
+    getAll: async (): Promise<AppMessage[]> => {
+      if (!isSupabaseConfigured) return [];
+      try {
+        const { data, error } = await supabase.from('messages').select('*').order('createdAt', { ascending: false });
+        if (error) {
+          if (error.code === '42P01') return [];
+          throw error;
+        }
+        return data || [];
+      } catch (err) {
+        return [];
+      }
+    },
+    save: async (msg: AppMessage) => {
+      ensureConfig();
+      const { error } = await supabase.from('messages').upsert(msg);
+      if (error) handleDbError(error, "messages.save");
+    },
+    delete: async (id: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('messages').delete().eq('id', id);
+      if (error) handleDbError(error, "messages.delete");
     }
   }
 };

@@ -19,6 +19,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'messages', label: 'Mensagens', icon: '✉️', roles: [Role.ADMIN] },
     { id: 'finops', label: 'Finops', icon: '💰', roles: [Role.ADMIN], specialOnly: true },
     { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
@@ -65,7 +66,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
              currentView === 'users' ? 'Gestão de Utilizadores' :
              currentView === 'shifts' ? 'Agenda de Treinos' : 
              currentView === 'profile' ? 'O Meu Perfil' : 
-             currentView === 'finops' ? 'Controlo Financeiro' : 'Histórico de Sessões'}
+             currentView === 'finops' ? 'Controlo Financeiro' : 
+             currentView === 'messages' ? 'Comunicações' : 'Histórico de Sessões'}
           </h1>
 
           <div className="flex items-center gap-3">

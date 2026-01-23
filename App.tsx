@@ -11,6 +11,7 @@ import ShiftsList from './components/ShiftsList';
 import SessionsHistory from './components/SessionsHistory';
 import ProfileEdit from './components/ProfileEdit';
 import Finops from './components/Finops';
+import Messaging from './components/Messaging';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>({
@@ -19,13 +20,14 @@ const App: React.FC = () => {
     shifts: [],
     sessions: [],
     rsvps: [],
+    messages: [],
     isOffline: false,
     appLogo: 'logo.png'
   });
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'shifts' | 'sessions' | 'profile' | 'finops'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'shifts' | 'sessions' | 'profile' | 'finops' | 'messages'>('dashboard');
 
   const refreshData = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -38,12 +40,13 @@ const App: React.FC = () => {
       setInitError(null);
       setLoading(true);
       
-      const [users, shifts, sessions, rsvps, logo] = await Promise.all([
+      const [users, shifts, sessions, rsvps, logo, messages] = await Promise.all([
         db.users.getAll(),
         db.shifts.getAll(),
         db.sessions.getAll(),
         db.rsvps.getAll(),
-        db.settings.getLogo()
+        db.settings.getLogo(),
+        db.messages.getAll()
       ]);
       
       let updatedCurrentUser = appState.currentUser;
@@ -73,6 +76,7 @@ const App: React.FC = () => {
         shifts,
         sessions,
         rsvps,
+        messages,
         currentUser: updatedCurrentUser,
         appLogo: logo || 'logo.png'
       }));
@@ -151,6 +155,7 @@ const App: React.FC = () => {
       case 'shifts': return <ShiftsList state={appState} refresh={refreshData} />;
       case 'sessions': return <SessionsHistory state={appState} refresh={refreshData} />;
       case 'finops': return <Finops state={appState} refresh={refreshData} />;
+      case 'messages': return <Messaging state={appState} refresh={refreshData} />;
       case 'profile': return (
         <ProfileEdit 
           user={appState.currentUser!} 

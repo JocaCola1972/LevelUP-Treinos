@@ -65,12 +65,23 @@ export interface ShiftRSVP {
   attending: boolean;
 }
 
+export interface AppMessage {
+  id: string;
+  senderId: string;
+  recipientIds: string[]; // ['all'] para todos, ou lista de IDs
+  content: string;
+  type: 'INFO' | 'ALERT';
+  createdAt: string;
+  expiresAt?: string;
+}
+
 export interface AppState {
   currentUser: User | null;
   users: User[];
   shifts: Shift[];
   sessions: TrainingSession[];
   rsvps: ShiftRSVP[];
+  messages: AppMessage[];
   isOffline: boolean;
   appLogo?: string;
 }
