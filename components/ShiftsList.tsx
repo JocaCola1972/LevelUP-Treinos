@@ -16,6 +16,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isFinalizing, setIsFinalizing] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [schemaError, setSchemaError] = useState<boolean>(false);
   
   const [clubs, setClubs] = useState<string[]>([]);
   const [selectedClub, setSelectedClub] = useState<string>('');
@@ -41,15 +42,16 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   // Inicializar formulário quando abre modal ou muda edição
   useEffect(() => {
     if (isModalOpen) {
+      setSchemaError(false);
       if (editingShift) {
         setSelectedDay(editingShift.dayOfWeek);
         setSelectedDate(editingShift.startDate || '');
         setSelectedClub(editingShift.clubName || '');
         setIsAddingNewClub(false);
       } else {
-        setSelectedDay(getDayStringFromDate(new Date().toISOString().split('T')[0]));
-        setSelectedDate(new Date().toISOString().split('T')[0]);
-        // Tentar selecionar o primeiro clube da lista por defeito se houver
+        const today = new Date().toISOString().split('T')[0];
+        setSelectedDay(getDayStringFromDate(today));
+        setSelectedDate(today);
         if (clubs.length > 0) {
           setSelectedClub(clubs[0]);
         } else {
@@ -86,7 +88,6 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     const formData = new FormData(e.currentTarget);
     let finalClubName = selectedClub;
 
-    // Validação de Clube
     if (isAddingNewClub) {
       if (!newClubName.trim()) {
         alert("Por favor, introduza o nome do novo clube.");
@@ -99,8 +100,8 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
     }
 
     setIsSaving(true);
+    setSchemaError(false);
     try {
-      // Se for um novo clube, guardamos primeiro na tabela de clubes
       if (isAddingNewClub) {
         await db.clubs.save(finalClubName);
       }
@@ -118,14 +119,17 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
       };
 
       await db.shifts.save(shift);
-      
-      // Atualizar lista local de clubes e o estado da app
       await loadClubs();
       refresh();
       setIsModalOpen(false);
       setNewClubName('');
     } catch (err: any) {
-      alert(`Erro ao guardar treino: ${err.message}`);
+      console.error("Erro ao guardar treino:", err);
+      if (err.message?.includes('clubs') || err.message?.includes('PGRST205') || err.message?.includes('42P01')) {
+        setSchemaError(true);
+      } else {
+        alert(`Erro ao guardar treino: ${err.message}`);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -133,7 +137,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
 
   const handleFinalizeSession = async (shift: Shift) => {
     if (!shift.startDate) return;
-    if (!confirm('Deseja finalizar este treino? Ele será movido para o Histórico.')) return;
+    if (!confirm('Deseja finalizar este treino?')) return;
     
     setIsFinalizing(shift.id);
     try {
@@ -168,17 +172,15 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
 
   const StudentRSVPBadge: React.FC<{ student: User; shiftId: string; date: string }> = ({ student, shiftId, date }) => {
     const rsvp = state.rsvps.find(r => r.shiftId === shiftId && r.userId === student.id && r.date === date);
-
     if (!rsvp) return (
       <div className="relative group/avatar">
-        <img src={student.avatar} className="w-7 h-7 rounded-full border border-white grayscale opacity-50" alt={student.name} title={student.name} />
+        <img src={student.avatar} className="w-7 h-7 rounded-full border border-white grayscale opacity-50" alt="" />
         <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-slate-400 rounded-full border border-white"></div>
       </div>
     );
-
     return (
       <div className="relative group/avatar">
-        <img src={student.avatar} className={`w-7 h-7 rounded-full border border-white ${rsvp.attending ? 'ring-2 ring-padelgreen-200' : 'grayscale opacity-70'}`} alt={student.name} title={student.name} />
+        <img src={student.avatar} className={`w-7 h-7 rounded-full border border-white ${rsvp.attending ? 'ring-2 ring-padelgreen-200' : 'grayscale opacity-70'}`} alt="" />
         <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 ${rsvp.attending ? 'bg-padelgreen-500' : 'bg-red-500'} rounded-full border border-white`}></div>
       </div>
     );
@@ -217,7 +219,6 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
           const dateObj = shift.startDate ? new Date(shift.startDate) : null;
           const dayNum = dateObj?.getDate();
           const monthStr = dateObj?.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
-          
           const isCompleted = state.sessions.some(s => s.shiftId === shift.id && s.date.startsWith(shift.startDate!) && s.completed);
 
           return (
@@ -242,7 +243,6 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   )}
                 </div>
 
-                {/* Destaque do Clube/Local */}
                 <div className={`mb-4 px-4 py-2.5 rounded-2xl border flex items-center gap-2.5 ${isCompleted ? 'bg-slate-50/50 border-slate-100 text-slate-400' : 'bg-petrol-900 text-white border-petrol-950 shadow-md'}`}>
                   <span className="text-lg">📍</span>
                   <div className="min-w-0">
@@ -268,25 +268,15 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   </div>
                 </div>
 
-                {isStaff && (
+                {isStaff && !isCompleted && (
                   <div className="flex justify-end">
-                    {isCompleted ? (
-                      <div className="flex items-center gap-2 py-2 px-3 bg-slate-50 rounded-xl">
-                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Concluído</span>
-                        <span className="text-slate-200">✓</span>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => handleFinalizeSession(shift)}
-                        disabled={isFinalizing === shift.id}
-                        className="w-full py-3.5 bg-white border-2 border-padelgreen-400 text-petrol-900 hover:bg-padelgreen-400 hover:text-petrol-950 font-black rounded-2xl transition-all active:scale-95 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm"
-                      >
-                        {isFinalizing === shift.id ? (
-                          <div className="w-3 h-3 border-2 border-petrol-900 border-t-transparent rounded-full animate-spin"></div>
-                        ) : '✓'}
-                        {isFinalizing === shift.id ? 'A Finalizar' : 'Finalizar Sessão'}
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => handleFinalizeSession(shift)}
+                      disabled={isFinalizing === shift.id}
+                      className="w-full py-3.5 bg-white border-2 border-padelgreen-400 text-petrol-900 hover:bg-padelgreen-400 hover:text-petrol-950 font-black rounded-2xl transition-all active:scale-95 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      {isFinalizing === shift.id ? '...' : 'Finalizar Sessão'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -300,125 +290,101 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
           <div className="bg-white rounded-t-[40px] sm:rounded-[32px] w-full max-w-lg p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
             <div className="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-8 sm:hidden"></div>
             <h3 className="text-2xl font-black text-petrol-900 mb-8">Configurar Treino</h3>
-            <form onSubmit={handleSave} className="space-y-6">
-              
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Clube / Localização</label>
-                  {!isAddingNewClub ? (
-                    <div className="flex gap-2">
-                      <select 
-                        required
-                        value={selectedClub} 
-                        onChange={(e) => {
-                          if (e.target.value === 'NEW') {
-                            setIsAddingNewClub(true);
-                          } else {
-                            setSelectedClub(e.target.value);
-                          }
-                        }}
-                        className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm"
-                      >
-                        <option value="" disabled>Selecionar Clube...</option>
-                        {clubs.map(c => <option key={c} value={c}>{c}</option>)}
-                        <option value="NEW" className="text-padelgreen-600 font-black">+ Adicionar Novo Clube...</option>
-                      </select>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          autoFocus
-                          placeholder="Nome do novo clube..."
-                          value={newClubName}
-                          onChange={(e) => setNewClubName(e.target.value)}
-                          className="w-full px-4 py-3 bg-white border border-padelgreen-400 rounded-xl outline-none ring-2 ring-padelgreen-50 font-bold text-sm"
-                        />
-                        <button 
-                          type="button" 
-                          onClick={() => { setIsAddingNewClub(false); setNewClubName(''); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 hover:text-red-500 uppercase"
+            
+            {schemaError ? (
+              <div className="bg-amber-50 border-2 border-amber-400 p-6 rounded-3xl mb-8 space-y-4">
+                <h4 className="text-amber-900 font-black text-sm uppercase">🛠️ Atualização Necessária</h4>
+                <p className="text-amber-800 text-xs leading-relaxed">A sua base de dados não tem as tabelas necessárias para gerir Clubes. Copie o código abaixo e execute-o no <b>SQL Editor</b> do Supabase:</p>
+                <div className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl font-mono text-[9px] overflow-x-auto select-all">
+                  ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "clubName" TEXT; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "clubName" TEXT; <br/>
+                  CREATE TABLE IF NOT EXISTS clubs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT UNIQUE, created_at TIMESTAMPTZ DEFAULT now());
+                </div>
+                <button onClick={() => setSchemaError(false)} className="w-full py-3 bg-amber-500 text-white font-black rounded-xl text-[10px] uppercase">Já executei o comando</button>
+              </div>
+            ) : (
+              <form onSubmit={handleSave} className="space-y-6">
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Clube / Localização</label>
+                    {!isAddingNewClub ? (
+                      <div className="flex gap-2">
+                        <select 
+                          required
+                          value={selectedClub} 
+                          onChange={(e) => {
+                            if (e.target.value === 'NEW') setIsAddingNewClub(true);
+                            else setSelectedClub(e.target.value);
+                          }}
+                          className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm"
                         >
-                          Cancelar
-                        </button>
+                          <option value="" disabled>Selecionar Clube...</option>
+                          {clubs.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="NEW" className="text-padelgreen-600 font-black">+ Adicionar Novo Clube...</option>
+                        </select>
                       </div>
-                      <p className="text-[9px] text-padelgreen-600 font-bold italic">* Este clube será guardado na sua lista permanente.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            autoFocus
+                            placeholder="Nome do novo clube..."
+                            value={newClubName}
+                            onChange={(e) => setNewClubName(e.target.value)}
+                            className="w-full px-4 py-3 bg-white border border-padelgreen-400 rounded-xl outline-none ring-2 ring-padelgreen-50 font-bold text-sm"
+                          />
+                          <button type="button" onClick={() => { setIsAddingNewClub(false); setNewClubName(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Data</label>
+                      <input type="date" name="startDate" required value={selectedDate} onChange={handleDateChange} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm" />
                     </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Data</label>
-                    <input 
-                      type="date" 
-                      name="startDate"
-                      required
-                      value={selectedDate}
-                      onChange={handleDateChange}
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Hora</label>
-                    <input type="time" name="startTime" defaultValue={editingShift?.startTime || '18:00'} required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm" />
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Hora</label>
+                      <input type="time" name="startTime" defaultValue={editingShift?.startTime || '18:00'} required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Treinador</label>
+                    <select name="coachId" defaultValue={editingShift?.coachId || state.currentUser?.id} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-sm">
+                      {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Duração (Min)</label>
+                    <input type="number" name="duration" defaultValue={editingShift?.durationMinutes || 60} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-sm" />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest ml-1">Treinador</label>
-                  <select name="coachId" defaultValue={editingShift?.coachId || state.currentUser?.id} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm">
-                    {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Atletas Inscritos</label>
+                  <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    {students.map(s => (
+                      <label key={s.id} className="flex items-center gap-2 text-xs p-3 bg-white border border-slate-100 rounded-xl cursor-pointer font-bold">
+                        <input type="checkbox" name="studentIds" value={s.id} defaultChecked={editingShift?.studentIds.includes(s.id)} className="w-4 h-4 rounded text-padelgreen-500" />
+                        <span className="truncate">{s.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest ml-1">Duração (Min)</label>
-                  <input type="number" name="duration" defaultValue={editingShift?.durationMinutes || 60} required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-padelgreen-400 font-bold text-sm" />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest ml-1">Atletas Inscritos</label>
-                <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  {students.map(s => (
-                    <label key={s.id} className="flex items-center gap-2 text-xs p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-padelgreen-300 hover:shadow-sm transition-all font-bold">
-                      <input 
-                        type="checkbox" 
-                        name="studentIds" 
-                        value={s.id} 
-                        defaultChecked={editingShift?.studentIds.includes(s.id)}
-                        className="w-4 h-4 rounded text-padelgreen-500 focus:ring-padelgreen-400"
-                      />
-                      <span className="truncate">{s.name}</span>
-                    </label>
-                  ))}
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setIsModalOpen(false)} disabled={isSaving} className="flex-1 py-4 text-slate-400 font-black uppercase tracking-widest text-[10px]">Cancelar</button>
+                  <button type="submit" disabled={isSaving} className="flex-1 py-4 bg-petrol-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl text-[10px] flex items-center justify-center gap-2">
+                    {isSaving ? 'A Guardar...' : 'Confirmar Treino'}
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)} 
-                  disabled={isSaving}
-                  className="flex-1 py-4 text-slate-400 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all text-[10px]"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSaving}
-                  className="flex-1 py-4 bg-petrol-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-petrol-950 active:scale-95 transition-all text-[10px] flex items-center justify-center gap-2"
-                >
-                  {isSaving ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : null}
-                  {isSaving ? 'A Guardar...' : 'Confirmar Treino'}
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
