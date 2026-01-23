@@ -17,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, currentView, onNavigate, onLogo
     { id: 'dashboard', label: 'Início', icon: '🏠', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
     { id: 'shifts', label: 'Agenda', icon: '📅', roles: [Role.ADMIN, Role.COACH] },
     { id: 'sessions', label: 'Histórico', icon: '🎾', roles: [Role.ADMIN, Role.COACH, Role.STUDENT] },
+    { id: 'messages', label: 'Mensagens', icon: '✉️', roles: [Role.ADMIN] },
     { id: 'finops', label: 'Finops', icon: '💰', roles: [Role.ADMIN], specialOnly: true },
     { id: 'users', label: 'Pessoas', icon: '👥', roles: [Role.ADMIN] },
   ];
