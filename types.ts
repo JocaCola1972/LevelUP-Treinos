@@ -45,6 +45,8 @@ export interface TrainingSession {
   hiddenForUserIds?: string[];
   turmaName?: string;
   coachId?: string;
+  sessionCost?: number;
+  isCostPaid?: boolean;
   payments?: {
     [userId: string]: {
       paid: boolean;
