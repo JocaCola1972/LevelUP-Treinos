@@ -38,9 +38,9 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
           pendingCount++;
         }
       });
-      // Custos
+      // Custos (Fallack para 25 se não estiver definido ou for 0)
       if (s.isCostPaid) {
-        totalCosts += (s.sessionCost || 0);
+        totalCosts += (s.sessionCost || 25);
       }
     });
 
@@ -48,11 +48,8 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
   }, [sessions]);
 
   // Função para limpar o objeto da sessão antes de enviar para o DB
-  // Isto evita erros se a tabela não tiver colunas opcionais como turmaName ou coachId
   const sanitizeSession = (session: TrainingSession) => {
     const clean: any = { ...session };
-    // Removemos campos que podem não existir na tabela base para permitir o upsert parcial se necessário
-    // mas o ideal é que o utilizador execute o SQL
     return clean;
   };
 
@@ -127,7 +124,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Alerta de Erro de Schema - Mais visível e completo */}
+      {/* Alerta de Erro de Schema */}
       {schemaError && (
         <div className="bg-amber-50 border-2 border-amber-400 rounded-[32px] p-6 md:p-8 animate-in zoom-in duration-300 shadow-xl">
           <div className="flex flex-col md:flex-row items-start gap-6">
@@ -149,7 +146,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                 <div className="bg-slate-900 text-padelgreen-400 p-5 rounded-2xl font-mono text-[11px] leading-relaxed break-all select-all shadow-2xl border border-slate-700">
                   ALTER TABLE sessions <br/>
                   ADD COLUMN IF NOT EXISTS payments JSONB DEFAULT '&#123;&#125;'::jsonb, <br/>
-                  ADD COLUMN IF NOT EXISTS "sessionCost" NUMERIC DEFAULT 0, <br/>
+                  ADD COLUMN IF NOT EXISTS "sessionCost" NUMERIC DEFAULT 25, <br/>
                   ADD COLUMN IF NOT EXISTS "isCostPaid" BOOLEAN DEFAULT false, <br/>
                   ADD COLUMN IF NOT EXISTS "turmaName" TEXT, <br/>
                   ADD COLUMN IF NOT EXISTS "coachId" TEXT;
@@ -219,7 +216,8 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
             const sessionTotalPaid = paymentValues.reduce((acc, p) => acc + (p.paid ? p.amount : 0), 0);
             
             const isCostSaving = savingId === `${session.id}-cost`;
-            const profit = sessionTotalPaid - (session.sessionCost || 0);
+            const currentSessionCost = session.sessionCost !== undefined && session.sessionCost !== 0 ? session.sessionCost : 25;
+            const profit = sessionTotalPaid - currentSessionCost;
 
             return (
               <div key={session.id} className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -247,7 +245,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                         <input 
                           type="number"
                           id={`cost-input-${session.id}`}
-                          defaultValue={session.sessionCost || 0}
+                          defaultValue={currentSessionCost}
                           onBlur={(e) => handleUpdateSessionCost(e as any, session, parseFloat(e.target.value) || 0, !!session.isCostPaid)}
                           className="w-16 px-1 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs font-black text-center outline-none focus:ring-1 focus:ring-petrol-400"
                         />
@@ -255,8 +253,8 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                       <button
                         onClick={(e) => {
                           const input = document.getElementById(`cost-input-${session.id}`) as HTMLInputElement;
-                          const currentCost = input ? parseFloat(input.value) : (session.sessionCost || 0);
-                          handleUpdateSessionCost(e, session, currentCost, !session.isCostPaid);
+                          const currentCostVal = input ? parseFloat(input.value) : currentSessionCost;
+                          handleUpdateSessionCost(e, session, currentCostVal, !session.isCostPaid);
                         }}
                         disabled={isCostSaving}
                         className={`min-w-[70px] px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all active:scale-90 ${
