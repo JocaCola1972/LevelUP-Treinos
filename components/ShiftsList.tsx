@@ -15,20 +15,30 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
   const [selectedDay, setSelectedDay] = useState<string>(DAYS_OF_WEEK[0]);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isFinalizing, setIsFinalizing] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [clubs, setClubs] = useState<string[]>([]);
   const [selectedClub, setSelectedClub] = useState<string>('');
   const [newClubName, setNewClubName] = useState<string>('');
   const [isAddingNewClub, setIsAddingNewClub] = useState(false);
 
-  useEffect(() => {
-    const loadClubs = async () => {
+  // Carregar clubes do banco de dados
+  const loadClubs = async () => {
+    try {
       const data = await db.clubs.getAll();
       setClubs(data);
-    };
+      return data;
+    } catch (err) {
+      console.error("Erro ao carregar clubes:", err);
+      return [];
+    }
+  };
+
+  useEffect(() => {
     loadClubs();
   }, []);
 
+  // Inicializar formulário quando abre modal ou muda edição
   useEffect(() => {
     if (isModalOpen) {
       if (editingShift) {
@@ -37,61 +47,88 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
         setSelectedClub(editingShift.clubName || '');
         setIsAddingNewClub(false);
       } else {
-        setSelectedDay(DAYS_OF_WEEK[0]);
+        setSelectedDay(getDayStringFromDate(new Date().toISOString().split('T')[0]));
         setSelectedDate(new Date().toISOString().split('T')[0]);
-        setSelectedClub(clubs[0] || '');
+        // Tentar selecionar o primeiro clube da lista por defeito se houver
+        if (clubs.length > 0) {
+          setSelectedClub(clubs[0]);
+        } else {
+          setSelectedClub('');
+        }
         setIsAddingNewClub(false);
       }
     }
-  }, [isModalOpen, editingShift, clubs]);
+  }, [isModalOpen, editingShift, clubs.length]);
 
   const isStaff = state.currentUser?.role === Role.ADMIN || state.currentUser?.role === Role.COACH;
   const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
   const students = state.users.filter(u => u.role === Role.STUDENT);
 
-  const getDayStringFromDate = (dateString: string) => {
+  function getDayStringFromDate(dateString: string) {
+    if (!dateString) return DAYS_OF_WEEK[0];
     const date = new Date(dateString);
     const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     return days[date.getDay()];
-  };
+  }
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const dateValue = e.target.value;
     setSelectedDate(dateValue);
     if (dateValue) {
-      const dayName = getDayStringFromDate(dateValue);
-      setSelectedDay(dayName);
+      setSelectedDay(getDayStringFromDate(dateValue));
     }
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSaving) return;
+
     const formData = new FormData(e.currentTarget);
-    
     let finalClubName = selectedClub;
-    if (isAddingNewClub && newClubName.trim()) {
-      await db.clubs.save(newClubName.trim());
+
+    // Validação de Clube
+    if (isAddingNewClub) {
+      if (!newClubName.trim()) {
+        alert("Por favor, introduza o nome do novo clube.");
+        return;
+      }
       finalClubName = newClubName.trim();
+    } else if (!selectedClub) {
+      alert("Por favor, selecione um clube.");
+      return;
     }
 
-    const shift: Shift = {
-      id: editingShift?.id || Math.random().toString(36).substr(2, 9),
-      dayOfWeek: selectedDay,
-      startTime: formData.get('startTime') as string,
-      durationMinutes: parseInt(formData.get('duration') as string),
-      coachId: formData.get('coachId') as string,
-      studentIds: Array.from(formData.getAll('studentIds')) as string[],
-      recurrence: RecurrenceType.PONTUAL,
-      startDate: selectedDate || undefined,
-      clubName: finalClubName
-    };
-    await db.shifts.save(shift);
-    refresh();
-    setIsModalOpen(false);
-    
-    // Refresh clubs list
-    const updatedClubs = await db.clubs.getAll();
-    setClubs(updatedClubs);
+    setIsSaving(true);
+    try {
+      // Se for um novo clube, guardamos primeiro na tabela de clubes
+      if (isAddingNewClub) {
+        await db.clubs.save(finalClubName);
+      }
+
+      const shift: Shift = {
+        id: editingShift?.id || Math.random().toString(36).substr(2, 9),
+        dayOfWeek: selectedDay,
+        startTime: formData.get('startTime') as string,
+        durationMinutes: parseInt(formData.get('duration') as string) || 60,
+        coachId: formData.get('coachId') as string,
+        studentIds: Array.from(formData.getAll('studentIds')) as string[],
+        recurrence: RecurrenceType.PONTUAL,
+        startDate: selectedDate || undefined,
+        clubName: finalClubName
+      };
+
+      await db.shifts.save(shift);
+      
+      // Atualizar lista local de clubes e o estado da app
+      await loadClubs();
+      refresh();
+      setIsModalOpen(false);
+      setNewClubName('');
+    } catch (err: any) {
+      alert(`Erro ao guardar treino: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFinalizeSession = async (shift: Shift) => {
@@ -271,6 +308,7 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
                   {!isAddingNewClub ? (
                     <div className="flex gap-2">
                       <select 
+                        required
                         value={selectedClub} 
                         onChange={(e) => {
                           if (e.target.value === 'NEW') {
@@ -361,8 +399,24 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ state, refresh }) => {
               </div>
 
               <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-400 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all text-[10px]">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-petrol-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-petrol-950 active:scale-95 transition-all text-[10px]">Confirmar Treino</button>
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-4 text-slate-400 font-black uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all text-[10px]"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="flex-1 py-4 bg-petrol-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-petrol-950 active:scale-95 transition-all text-[10px] flex items-center justify-center gap-2"
+                >
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : null}
+                  {isSaving ? 'A Guardar...' : 'Confirmar Treino'}
+                </button>
               </div>
             </form>
           </div>
