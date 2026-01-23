@@ -38,7 +38,9 @@ const Messaging: React.FC<MessagingProps> = ({ state, refresh }) => {
       setIsModalOpen(false);
       refresh();
     } catch (err: any) {
-      if (err.message?.includes('PGRST205') || err.message?.includes('42P01')) {
+      console.error("Erro ao enviar mensagem:", err);
+      // Detetar erro de tabela inexistente (42P01) ou coluna inexistente (PGRST204)
+      if (err.message?.includes('PGRST205') || err.message?.includes('42P01') || err.message?.includes('PGRST204')) {
         setSchemaError(true);
       } else {
         alert(`Erro ao enviar: ${err.message}`);
@@ -102,7 +104,7 @@ const Messaging: React.FC<MessagingProps> = ({ state, refresh }) => {
                     {msg.type}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                    {new Date(msg.createdAt).toLocaleDateString('pt-PT')} às {new Date(msg.createdAt).toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleDateString('pt-PT') + ' às ' + new Date(msg.createdAt).toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'}) : 'Data desconhecida'}
                   </span>
                 </div>
                 <p className="text-sm font-bold text-petrol-900 leading-relaxed mb-2">{msg.content}</p>
@@ -141,12 +143,18 @@ const Messaging: React.FC<MessagingProps> = ({ state, refresh }) => {
             
             {schemaError ? (
               <div className="bg-amber-50 border-2 border-amber-400 p-6 rounded-3xl mb-8 space-y-4">
-                <h4 className="text-amber-900 font-black text-xs uppercase">🛠️ Configuração SQL Necessária</h4>
-                <p className="text-amber-800 text-xs leading-relaxed">A tabela de mensagens ainda não existe. Execute isto no SQL Editor:</p>
-                <div className="bg-slate-900 text-padelgreen-400 p-4 rounded-xl font-mono text-[9px] overflow-x-auto select-all">
-                  CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, senderId TEXT, recipientIds TEXT[], content TEXT, type TEXT, createdAt TIMESTAMPTZ DEFAULT now());
+                <h4 className="text-amber-900 font-black text-xs uppercase">🛠️ Correção SQL Necessária</h4>
+                <p className="text-amber-800 text-xs leading-relaxed">A coluna <b>createdAt</b> não foi encontrada. Execute este código no <b>SQL Editor</b> do Supabase para corrigir a tabela:</p>
+                <div className="bg-slate-900 text-padelgreen-400 p-5 rounded-xl font-mono text-[10px] leading-relaxed overflow-x-auto select-all shadow-inner">
+                  CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, "senderId" TEXT, "recipientIds" TEXT[], content TEXT, type TEXT, "createdAt" TIMESTAMPTZ DEFAULT now());<br/>
+                  ALTER TABLE messages ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ DEFAULT now();<br/>
+                  ALTER TABLE messages ADD COLUMN IF NOT EXISTS "senderId" TEXT;<br/>
+                  ALTER TABLE messages ADD COLUMN IF NOT EXISTS "recipientIds" TEXT[];
                 </div>
-                <button onClick={() => setSchemaError(false)} className="w-full py-3 bg-amber-500 text-white font-black rounded-xl text-[10px] uppercase">OK</button>
+                <div className="pt-4 flex flex-col gap-2">
+                  <button onClick={() => { setSchemaError(false); refresh(); }} className="w-full py-4 bg-amber-500 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg">Já executei o código</button>
+                  <button onClick={() => setSchemaError(false)} className="w-full py-2 text-amber-700 text-[10px] font-bold uppercase">Fechar Aviso</button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSendMessage} className="space-y-6">
@@ -208,7 +216,7 @@ const Messaging: React.FC<MessagingProps> = ({ state, refresh }) => {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-400 font-black uppercase tracking-widest text-[10px]">Cancelar</button>
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Cancelar</button>
                   <button type="submit" disabled={isSaving} className="flex-1 py-4 bg-petrol-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl text-[10px] flex items-center justify-center gap-2">
                     {isSaving ? 'A Enviar...' : 'Enviar Agora'}
                   </button>
