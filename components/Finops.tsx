@@ -132,26 +132,20 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
             <div className="flex-1">
               <h3 className="text-amber-900 font-black uppercase text-base tracking-tight mb-2">Atualização Necessária</h3>
               <p className="text-amber-800 text-sm font-medium leading-relaxed mb-6">
-                Para que as funções financeiras e de gestão funcionem, a sua base de dados precisa de novas colunas. 
-                Siga estes passos:
-                <ol className="list-decimal ml-5 mt-2 space-y-1">
-                  <li>Abra o seu painel do <b>Supabase</b>.</li>
-                  <li>Vá a <b>SQL Editor</b> (ícone na barra lateral esquerda).</li>
-                  <li>Clique em <b>New Query</b>.</li>
-                  <li>Cole o código abaixo e clique em <b>Run</b>.</li>
-                </ol>
+                Para suportar as novas funções de <b>Clube/Local</b> e Financeiras, execute este SQL no Supabase:
               </p>
               
               <div className="relative group">
-                <div className="bg-slate-900 text-padelgreen-400 p-5 rounded-2xl font-mono text-[11px] leading-relaxed break-all select-all shadow-2xl border border-slate-700">
-                  ALTER TABLE sessions <br/>
-                  ADD COLUMN IF NOT EXISTS payments JSONB DEFAULT '&#123;&#125;'::jsonb, <br/>
-                  ADD COLUMN IF NOT EXISTS "sessionCost" NUMERIC DEFAULT 25, <br/>
-                  ADD COLUMN IF NOT EXISTS "isCostPaid" BOOLEAN DEFAULT false, <br/>
-                  ADD COLUMN IF NOT EXISTS "turmaName" TEXT, <br/>
-                  ADD COLUMN IF NOT EXISTS "coachId" TEXT;
+                <div className="bg-slate-900 text-padelgreen-400 p-5 rounded-2xl font-mono text-[10px] leading-relaxed break-all select-all shadow-2xl border border-slate-700">
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payments JSONB DEFAULT '&#123;&#125;'::jsonb; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "sessionCost" NUMERIC DEFAULT 25; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "isCostPaid" BOOLEAN DEFAULT false; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "turmaName" TEXT; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "coachId" TEXT; <br/>
+                  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "clubName" TEXT; <br/>
+                  ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "clubName" TEXT; <br/>
+                  CREATE TABLE IF NOT EXISTS clubs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT UNIQUE, created_at TIMESTAMPTZ DEFAULT now());
                 </div>
-                <div className="absolute top-2 right-2 text-[8px] bg-slate-800 text-slate-400 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity uppercase font-black">Clique para selecionar tudo</div>
               </div>
               
               <div className="mt-6 flex gap-4">
@@ -165,7 +159,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                   onClick={() => setSchemaError(null)}
                   className="px-6 py-3 text-amber-700 font-bold hover:bg-amber-100 rounded-xl transition-all text-xs uppercase"
                 >
-                  Dispensar por agora
+                  Dispensar
                 </button>
               </div>
             </div>
@@ -232,7 +226,7 @@ const Finops: React.FC<FinopsProps> = ({ state, refresh }) => {
                         {session.turmaName || "Treino Pontual"}
                       </h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {attendees.length} Atletas
+                        📍 {session.clubName || 'Sem Clube'} • {attendees.length} Atletas
                       </p>
                     </div>
                   </div>

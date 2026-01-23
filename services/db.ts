@@ -150,5 +150,26 @@ export const db = {
         .eq('date', date);
       if (error) handleDbError(error, "rsvps.deleteByUserAndDate");
     }
+  },
+  clubs: {
+    getAll: async (): Promise<string[]> => {
+      if (!isSupabaseConfigured) return [];
+      try {
+        const { data, error } = await supabase.from('clubs').select('name').order('name');
+        if (error) {
+          if (error.code === '42P01') return [];
+          throw error;
+        }
+        return data?.map(c => c.name) || [];
+      } catch (err) {
+        console.warn("Aviso: Tabela 'clubs' não encontrada ou erro ao carregar.");
+        return [];
+      }
+    },
+    save: async (name: string) => {
+      ensureConfig();
+      const { error } = await supabase.from('clubs').upsert({ name }, { onConflict: 'name' });
+      if (error) handleDbError(error, "clubs.save");
+    }
   }
 };

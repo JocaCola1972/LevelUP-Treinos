@@ -30,6 +30,7 @@ export interface Shift {
   coachId: string;
   recurrence: RecurrenceType;
   startDate?: string;
+  clubName?: string;
 }
 
 export interface TrainingSession {
@@ -47,6 +48,7 @@ export interface TrainingSession {
   coachId?: string;
   sessionCost?: number;
   isCostPaid?: boolean;
+  clubName?: string;
   payments?: {
     [userId: string]: {
       paid: boolean;

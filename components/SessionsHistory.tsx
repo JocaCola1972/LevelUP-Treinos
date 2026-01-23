@@ -15,6 +15,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
   const [isPastModalOpen, setIsPastModalOpen] = useState(false);
   const [isSavingPast, setIsSavingPast] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  
+  const [clubs, setClubs] = useState<string[]>([]);
 
   const userRole = state.currentUser?.role;
   const userId = state.currentUser?.id;
@@ -23,6 +25,14 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
 
   const coaches = state.users.filter(u => u.role === Role.COACH || u.role === Role.ADMIN);
   const activeSession = state.sessions.find(s => s.isActive);
+
+  useEffect(() => {
+    const loadClubs = async () => {
+      const data = await db.clubs.getAll();
+      setClubs(data);
+    };
+    loadClubs();
+  }, []);
 
   useEffect(() => {
     if (selectedSession) {
@@ -41,7 +51,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
       isActive: true,
       completed: false,
       attendeeIds: [],
-      hiddenForUserIds: []
+      hiddenForUserIds: [],
+      clubName: shift?.clubName
     };
     await db.sessions.save(newSession);
     refresh();
@@ -68,7 +79,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
         coachId: editBuffer.coachId || null,
         notes: editBuffer.notes || null,
         youtubeUrl: editBuffer.youtubeUrl || null,
-        aiInsights: editBuffer.aiInsights || null
+        aiInsights: editBuffer.aiInsights || null,
+        clubName: editBuffer.clubName || null
       };
 
       await db.sessions.save(cleanSession);
@@ -118,7 +130,8 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
       attendeeIds: Array.from(formData.getAll('attendeeIds')) as string[],
       notes: formData.get('notes') as string,
       youtubeUrl: formData.get('youtubeUrl') as string,
-      hiddenForUserIds: []
+      hiddenForUserIds: [],
+      clubName: formData.get('clubName') as string
     };
 
     try {
@@ -180,7 +193,7 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
               <div className="w-14 h-14 bg-padelgreen-400 rounded-2xl animate-pulse flex items-center justify-center shrink-0 shadow-lg shadow-padelgreen-500/20 text-2xl">🎾</div>
               <div>
                 <h3 className="text-xl font-black text-petrol-900 leading-tight">Treino em Curso</h3>
-                <p className="text-sm text-petrol-700 font-medium">Sessão aberta e a decorrer agora.</p>
+                <p className="text-sm text-petrol-700 font-medium">Sessão aberta e a decorrer agora em <b>{activeSession.clubName || 'Local Indefinido'}</b>.</p>
               </div>
             </div>
             <div className="flex gap-3 w-full md:w-auto">
@@ -198,11 +211,14 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     <button 
                       key={shift.id} 
                       onClick={() => handleStartSession(shift.id)}
-                      className="bg-white px-5 py-4 rounded-2xl border border-slate-200 hover:border-padelgreen-400 hover:shadow-md transition-all text-left min-w-[200px] shrink-0 group"
+                      className="bg-white px-5 py-4 rounded-3xl border-2 border-slate-100 hover:border-padelgreen-400 hover:shadow-xl transition-all text-left min-w-[220px] shrink-0 group"
                     >
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-padelgreen-600 transition-colors">{shift.startDate === todayStr ? 'Hoje' : shift.dayOfWeek}</p>
                       <p className="text-lg font-black text-petrol-900 leading-tight">{shift.startTime}</p>
-                      <p className="text-[10px] text-slate-500 mt-1">{shift.studentIds.length} Atletas inscritos</p>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-xs">📍</span>
+                        <span className="text-[10px] font-black uppercase text-petrol-800 truncate">{shift.clubName || 'Local?'}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -249,12 +265,15 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-0.5">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate max-w-[120px] md:max-w-none">{displayTurma}</span>
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-petrol-50 rounded text-[9px] font-black text-petrol-700">
+                          <span>📍</span>
+                          <span className="uppercase">{session.clubName || 'S/ Clube'}</span>
+                        </div>
                         {session.youtubeUrl && (
                           <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded font-black border border-red-100">▶️ VÍDEO</span>
                         )}
-                        <span className="text-[10px] text-slate-300 hidden sm:block">•</span>
                         <span className="text-[10px] font-bold text-slate-500 hidden sm:block">🕒 {sessionDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <p className="text-xs md:text-sm font-semibold text-petrol-900 truncate">
@@ -310,24 +329,33 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
             <form onSubmit={handleSavePastSession} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Clube / Local</label>
+                  <select name="clubName" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium">
+                    <option value="" disabled>Selecionar Clube...</option>
+                    {clubs.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Identificação</label>
                   <input name="turmaName" type="text" required placeholder="Ex: Clínica Padel, Turma X..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium" />
                 </div>
-                <div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Coach</label>
                   <select name="coachId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium">
                     {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
-                  <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Hora</label>
-                  <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Data</label>
+                    <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Hora</label>
+                    <input type="time" name="time" required defaultValue="18:00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold" />
+                  </div>
                 </div>
               </div>
               <div>
@@ -382,7 +410,25 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Turma / Evento</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Local (Clube)</p>
+                  {isAdmin ? (
+                    <select 
+                      value={editBuffer.clubName || ''} 
+                      onChange={(e) => updateBufferField('clubName', e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-padelgreen-400"
+                    >
+                      <option value="">(Local Indefinido)</option>
+                      {clubs.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                       <span className="text-lg">📍</span>
+                       <p className="text-sm font-bold text-petrol-900 uppercase">{editBuffer.clubName || 'Local Indefinido'}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Identificação</p>
                   {isAdmin ? (
                     <input 
                       type="text" 
@@ -395,7 +441,10 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     <p className="text-sm font-bold text-petrol-900">{editBuffer.turmaName || 'Treino Pontual'}</p>
                   )}
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Coach</p>
                   {isAdmin ? (
                     <select 
@@ -415,6 +464,12 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     </div>
                   )}
                 </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Realizado em</p>
+                  <p className="text-sm font-bold text-petrol-900">
+                    {new Date(editBuffer.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(editBuffer.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -432,13 +487,6 @@ const SessionsHistory: React.FC<SessionsHistoryProps> = ({ state, refresh }) => 
                     {editBuffer.youtubeUrl || "Nenhum vídeo disponível."}
                   </p>
                 )}
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Realizado em</p>
-                <p className="text-sm font-bold text-petrol-900">
-                  {new Date(editBuffer.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(editBuffer.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
-                </p>
               </div>
 
               <div>
